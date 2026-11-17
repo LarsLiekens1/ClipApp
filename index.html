@@ -24,7 +24,6 @@
     --accent-glow: rgba(99, 102, 241, 0.25);
     --seg-color: #10B981;
     --seg-glow: rgba(16, 185, 129, 0.25);
-    --cyan: #06B6D4;
     --danger: #EF4444;
     --danger-hover: #DC2626;
     --radius-sm: 8px;
@@ -137,7 +136,7 @@
 
   .header-intro {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 32px;
   }
   .header-intro h1 {
     font-size: 2.25rem;
@@ -153,197 +152,6 @@
     font-size: 1.05rem;
     margin: 0 auto;
     max-width: 58ch;
-  }
-
-  /* Schema Toggle Button */
-  .schema-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: var(--radius-full);
-    font-size: 0.84rem;
-    font-weight: 600;
-    background: rgba(99, 102, 241, 0.12);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    color: #A5B4FC;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  .schema-btn:hover {
-    background: rgba(99, 102, 241, 0.22);
-    border-color: #6366F1;
-    color: #fff;
-    transform: translateY(-1px);
-  }
-
-  /* Schema Section Card */
-  .schema-card {
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    margin-bottom: 24px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.1);
-    animation: fadeIn 0.3s ease;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .schema-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .schema-header h2 {
-    margin: 0;
-    font-size: 1.15rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #fff;
-  }
-  .schema-close {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-  }
-  .schema-close:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  /* Schema Tabs */
-  .schema-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
-    overflow-x: auto;
-  }
-  .schema-tab-btn {
-    padding: 8px 14px;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text-secondary);
-    font-size: 0.86rem;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
-  }
-  .schema-tab-btn:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.05);
-  }
-  .schema-tab-btn.active {
-    color: #fff;
-    background: var(--bg-elevated);
-    border-color: var(--border-hover);
-  }
-
-  /* Flow Diagram Steps */
-  .flow-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .flow-step {
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-    background: rgba(31, 41, 55, 0.4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    transition: border-color 0.2s;
-  }
-  .flow-step:hover {
-    border-color: var(--border-hover);
-  }
-  .flow-num {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-full);
-    background: linear-gradient(135deg, var(--accent), #8B5CF6);
-    color: #fff;
-    font-weight: 700;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .flow-body {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .flow-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-  .flow-desc {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    margin-top: 2px;
-  }
-  .flow-badge {
-    padding: 4px 10px;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    font-family: var(--font-mono);
-    background: rgba(99, 102, 241, 0.15);
-    color: #A5B4FC;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    white-space: nowrap;
-  }
-  .flow-arrow-down {
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    line-height: 1;
-    margin: -6px 0;
-  }
-
-  /* Tech Grid in Tab 3 */
-  .tech-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px;
-  }
-  .tech-card {
-    padding: 14px;
-    border-radius: var(--radius-md);
-    background: rgba(31, 41, 55, 0.4);
-    border: 1px solid var(--border);
-  }
-  .tech-card h4 {
-    margin: 0 0 6px;
-    font-size: 0.95rem;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .tech-card p {
-    margin: 0;
-    font-size: 0.82rem;
-    color: var(--text-secondary);
   }
 
   /* Card Sections */
@@ -380,7 +188,9 @@
     box-shadow: 0 0 0 3px var(--accent-glow);
     background: rgba(15, 23, 42, 0.95);
   }
-  select { cursor: pointer; }
+  select {
+    cursor: pointer;
+  }
 
   button {
     padding: 11px 18px;
@@ -401,7 +211,9 @@
     border-color: var(--border-hover);
     transform: translateY(-1px);
   }
-  button:active:not(:disabled) { transform: translateY(0); }
+  button:active:not(:disabled) {
+    transform: translateY(0);
+  }
   button.primary {
     background: linear-gradient(135deg, var(--accent), var(--accent-hover));
     border-color: var(--accent);
@@ -438,7 +250,9 @@
     pointer-events: none;
     transition: fill 0.2s;
   }
-  .input-wrapper input:focus ~ svg { fill: var(--accent); }
+  .input-wrapper input:focus ~ svg {
+    fill: var(--accent);
+  }
   #url {
     width: 100%;
     padding-left: 44px;
@@ -468,7 +282,9 @@
     align-items: center;
     gap: 10px;
   }
-  #status:not(:empty) { display: flex; }
+  #status:not(:empty) {
+    display: flex;
+  }
   #status.error {
     color: #FCA5A5;
     background: rgba(239, 68, 68, 0.12);
@@ -529,7 +345,9 @@
     overflow: hidden;
     box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
   }
-  #timeline:hover { border-color: var(--border-hover); }
+  #timeline:hover {
+    border-color: var(--border-hover);
+  }
   .seg {
     position: absolute;
     top: 0;
@@ -597,7 +415,10 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .field .pair { display: flex; gap: 8px; }
+  .field .pair {
+    display: flex;
+    gap: 8px;
+  }
   input.time {
     width: 100%;
     font-family: var(--font-mono);
@@ -625,7 +446,9 @@
   }
 
   /* Chosen Segments List */
-  .segments-section { margin-top: 18px; }
+  .segments-section {
+    margin-top: 18px;
+  }
   .segments-header {
     font-size: 0.95rem;
     font-weight: 700;
@@ -661,7 +484,10 @@
     border-color: var(--border-hover);
     border-left-color: var(--seg-color);
   }
-  #segments li .actions { display: flex; gap: 8px; }
+  #segments li .actions {
+    display: flex;
+    gap: 8px;
+  }
   #segments button {
     padding: 6px 12px;
     font-size: 0.82rem;
@@ -685,7 +511,9 @@
     border-radius: var(--radius-sm);
   }
 
-  /* Opties & Effecten */
+  /* ================================================= */
+  /* Opties & Effecten — Geen overlap, ruim & overzichtelijk */
+  /* ================================================= */
   .options-box {
     margin: 24px 0;
     padding: 22px;
@@ -702,7 +530,10 @@
     color: var(--text-primary);
     margin-bottom: 16px;
   }
-  .options-title svg { fill: var(--accent); }
+  .options-title svg {
+    fill: var(--accent);
+  }
+
   .options-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -720,7 +551,9 @@
     gap: 14px;
     transition: all 0.2s ease;
   }
-  .opt-group:hover { border-color: var(--border-hover); }
+  .opt-group:hover {
+    border-color: var(--border-hover);
+  }
   .opt-group.active {
     border-color: rgba(99, 102, 241, 0.5);
     background: rgba(17, 24, 39, 0.95);
@@ -761,7 +594,7 @@
     line-height: 1.4;
   }
 
-  /* Sub controls */
+  /* Sub controls (dependent on main toggle) */
   .opt-sub-row {
     display: flex;
     align-items: center;
@@ -846,6 +679,7 @@
     background: rgba(255, 255, 255, 0.12);
   }
 
+  /* Disabled state for sub-controls */
   .opt-sub-row.disabled,
   .opt-sub-controls.disabled {
     opacity: 0.4;
@@ -929,8 +763,6 @@
     .options-grid { grid-template-columns: 1fr; }
     .opt-sub-row { flex-direction: column; align-items: stretch; }
     .opt-sub-row select { max-width: 100%; }
-    .flow-step { grid-template-columns: 36px 1fr; }
-    .flow-badge { grid-column: 2; justify-self: start; }
   }
 </style>
 </head>
@@ -961,172 +793,7 @@
   <div class="header-intro">
     <h1>Video Clipper & Transcribe</h1>
     <p>Plak een YouTube- of video-link, markeer de beste momenten en genereer automatisch korte clips met optionele ondertitels en 9:16 formaat.</p>
-    <div style="margin-top: 14px;">
-      <button type="button" class="schema-btn" id="schema-toggle">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-        <span>Bekijk hoe ClipAPP werkt (Architectuur Schema)</span>
-      </button>
-    </div>
   </div>
-
-  <!-- Visueel Architectuur Schema Section (Inklapbaar) -->
-  <section id="schema-card" class="schema-card" hidden>
-    <div class="schema-header">
-      <h2>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#6366F1"><path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM11 7h2v2h-2zM7 7h2v2H7zm8 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h10v2H7z"/></svg>
-        Systeemarchitectuur & Dataflow
-      </h2>
-      <button type="button" class="schema-close" id="schema-close" title="Sluiten">✕</button>
-    </div>
-
-    <div class="schema-tabs">
-      <button type="button" class="schema-tab-btn active" data-tab="flow-clipper">1. Clipper Pipeline (URL)</button>
-      <button type="button" class="schema-tab-btn" data-tab="flow-editor">2. Tijdlijn Editor (Bestanden)</button>
-      <button type="button" class="schema-tab-btn" data-tab="flow-tech">3. Lokale Technologieën & Privacy</button>
-    </div>
-
-    <!-- Tab 1: Clipper Flow -->
-    <div class="schema-tab-content" id="tab-flow-clipper">
-      <div class="flow-container">
-        <div class="flow-step">
-          <div class="flow-num">1</div>
-          <div class="flow-body">
-            <span class="flow-title">Video Link Invoeren & Analyse</span>
-            <span class="flow-desc">Gebruiker voert URL in. yt-dlp leest direct de videolengte en metadata uit. YouTube streamt rechtstreeks via een iframe; overige platforms genereren een snelle 360p preview.</span>
-          </div>
-          <span class="flow-badge">Flask + yt-dlp</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">2</div>
-          <div class="flow-body">
-            <span class="flow-title">Fragment Selectie op de Tijdlijn</span>
-            <span class="flow-desc">Gebruiker navigeert door de video en zet start- en eindtijden. Meerdere fragmenten kunnen aan de selectielijst worden toegevoegd.</span>
-          </div>
-          <span class="flow-badge">Browser HTML5 / JS</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">3</div>
-          <div class="flow-body">
-            <span class="flow-title">Doelgerichte Extractie (Hoge Kwaliteit)</span>
-            <span class="flow-desc">yt-dlp downloadt uitsluitend de gekozen tijdsintervallen in 1080p via <code>--download-sections</code>. De volledige video hoeft nooit gedownload te worden.</span>
-          </div>
-          <span class="flow-badge">yt-dlp 1080p</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">4</div>
-          <div class="flow-body">
-            <span class="flow-title">AI Ondertitels (Optioneel)</span>
-            <span class="flow-desc">FFmpeg extraheert 16kHz audio. faster-whisper genereert woord-voor-woord timestamps en schrijft gestylde .ass ondertitels en downloadbare .srt bestanden.</span>
-          </div>
-          <span class="flow-badge">faster-whisper AI</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">5</div>
-          <div class="flow-body">
-            <span class="flow-title">FFmpeg Compositie & 9:16 Conversie</span>
-            <span class="flow-desc">FFmpeg filtergraph transformeert de video naar 9:16 (1080x1920) met geblurde achtergrond, brandt de ondertitels in en plaatst het logo netjes onder de tekst.</span>
-          </div>
-          <span class="flow-badge">FFmpeg Filtergraph</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">6</div>
-          <div class="flow-body">
-            <span class="flow-title">Eindresultaat & Directe Download</span>
-            <span class="flow-desc">Het voltooide MP4-bestand en eventuele SRT-ondertitels zijn direct te bekijken en te downloaden in de browser.</span>
-          </div>
-          <span class="flow-badge">Output MP4 + SRT</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tab 2: Editor Flow -->
-    <div class="schema-tab-content" id="tab-flow-editor" hidden>
-      <div class="flow-container">
-        <div class="flow-step">
-          <div class="flow-num">1</div>
-          <div class="flow-body">
-            <span class="flow-title">Bestanden Uploaden & Analyseren</span>
-            <span class="flow-desc">Gebruiker sleept video- en audiobestanden. ffprobe inspecteert streams, codecs, rotatie en lengte en bewaart de metadata in <code>sources.json</code>.</span>
-          </div>
-          <span class="flow-badge">Flask + ffprobe</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">2</div>
-          <div class="flow-body">
-            <span class="flow-title">Montage op de Tijdlijn</span>
-            <span class="flow-desc">Knippen (S), wissen (Delete), dupliceren (D), randen verslepen om in te korten en blokken van plaats wisselen op de tijdlijn met realtime preview.</span>
-          </div>
-          <span class="flow-badge">Interactieve Track GUI</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">3</div>
-          <div class="flow-body">
-            <span class="flow-title">Normalisatie per Segment</span>
-            <span class="flow-desc">FFmpeg knipt elk stuk op maat en converteert alle beelden naar een uniforme framerate (30fps), sample rate (48kHz) en resolutie naar keuze (verticaal, vierkant of liggend).</span>
-          </div>
-          <span class="flow-badge">FFmpeg Normalisatie</span>
-        </div>
-
-        <div class="flow-arrow-down">▼</div>
-
-        <div class="flow-step">
-          <div class="flow-num">4</div>
-          <div class="flow-body">
-            <span class="flow-title">Naadloze Concat & Export</span>
-            <span class="flow-desc">De FFmpeg concat demuxer plakt alle segmenten aaneen tot één geheel en codeert de audio en video zonder kwaliteitsverlies.</span>
-          </div>
-          <span class="flow-badge">FFmpeg Concat Demuxer</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tab 3: Tech & Privacy -->
-    <div class="schema-tab-content" id="tab-flow-tech" hidden>
-      <div class="tech-grid">
-        <div class="tech-card">
-          <h4>Python Flask <span class="flow-badge">Backend</span></h4>
-          <p>Draait als een lichte lokale server (127.0.0.1:5050). Verzorgt taak-isolatie in aparte sessiemappen (<code>work/{job_id}</code>).</p>
-        </div>
-        <div class="tech-card">
-          <h4>yt-dlp <span class="flow-badge">Extractor</span></h4>
-          <p>Ondersteunt video-extractie vanaf honderden websites zonder kwaliteitsverlies en met keyframe-nauwkeurige kniptechniek.</p>
-        </div>
-        <div class="tech-card">
-          <h4>faster-whisper <span class="flow-badge">AI Speech</span></h4>
-          <p>Geoptimaliseerd lokaal spraakmodel (CTranslate2) dat razendsnel op CPU of GPU draait en automatische woord-timestamps levert.</p>
-        </div>
-        <div class="tech-card">
-          <h4>FFmpeg & ffprobe <span class="flow-badge">Video Engine</span></h4>
-          <p>Verwerkt filters, schaalt video's, creëert geblurde achtergronden, voegt logo's in en rendert naar H.264 / AAC.</p>
-        </div>
-        <div class="tech-card" style="grid-column: 1 / -1;">
-          <h4 style="color: #10B981;">100% Lokale Privacy & Veiligheid</h4>
-          <p>Er worden geen videobestanden of audiostreams naar externe clouds gestuurd. Alles wordt volledig lokaal op je eigen machine verwerkt en opgeslagen.</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section>
     <form id="load-form">
@@ -1192,7 +859,7 @@
       </div>
     </div>
 
-    <!-- Opties & Effecten -->
+    <!-- Opties & Effecten — Geen overlap, ruim & overzichtelijk -->
     <div class="options-box">
       <div class="options-title">
         <svg width="20" height="20" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
@@ -1261,29 +928,6 @@ const $ = s => document.querySelector(s);
 let job = null, duration = 0, segments = [];
 const player = $('#player');
 let yt = null;
-
-// Schema interactive toggle & tabs
-const schemaBtn = $('#schema-toggle');
-const schemaCard = $('#schema-card');
-const schemaClose = $('#schema-close');
-if (schemaBtn && schemaCard) {
-  schemaBtn.onclick = () => {
-    schemaCard.hidden = !schemaCard.hidden;
-    if (!schemaCard.hidden) schemaCard.scrollIntoView({ behavior: 'smooth' });
-  };
-  if (schemaClose) schemaClose.onclick = () => { schemaCard.hidden = true; };
-
-  document.querySelectorAll('.schema-tab-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('.schema-tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const tabId = btn.dataset.tab;
-      document.querySelectorAll('.schema-tab-content').forEach(c => c.hidden = true);
-      const target = document.getElementById('tab-' + tabId);
-      if (target) target.hidden = false;
-    };
-  });
-}
 
 const videoCtl = { time: () => player.currentTime, seek: t => { player.currentTime = t; }, play: () => player.play() };
 const ytCtl = {
@@ -1410,6 +1054,7 @@ setInterval(() => {
 $('#start-now').onclick = () => { $('#start').value = fmt(ctl.time()); drawTimeline(); };
 $('#end-now').onclick = () => { $('#end').value = fmt(ctl.time()); drawTimeline(); };
 
+// Opties toggles & afhankelijke controls
 const subsCheck = $('#subs');
 const langSelect = $('#lang');
 const subLangRow = $('#sub-lang-row');
