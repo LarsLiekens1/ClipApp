@@ -1,0 +1,33 @@
+# Work directory & media files
+work/
+*.mp4
+*.mkv
+*.webm
+*.mov
+*.wav
+*.mp3
+*.ass
+*.srt
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Test data & personal chat dumps
+livechat.live_chat.json
+test.srt
+
+# Python virtual environment & cache
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
