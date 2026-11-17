@@ -172,6 +172,8 @@ Deze software is uitsluitend ontwikkeld voor educatieve en persoonlijke doeleind
 
 ---
 
-## Licentie
+## Licentie & Externe Bibliotheken
 
 Dit project is beschikbaar onder de [MIT Licentie](LICENSE).
+
+Voor een volledig overzicht van alle gebruikte open-source bibliotheken, fonts en tools inclusief hun respectievelijke licenties (zoals Flask, yt-dlp, faster-whisper en FFmpeg), zie het document **[THIRD_PARTY.md](THIRD_PARTY.md)**.

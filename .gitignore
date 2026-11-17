@@ -17,6 +17,33 @@ work/
 livechat.live_chat.json
 test.srt
 
+# Secrets, cookies & credentials
+*.env
+.env.*
+cookies.txt
+*.cookie
+*credential*
+*secret*
+
+# Binary executables & external tools (FFmpeg hoort niet in de repo)
+*.exe
+*.dll
+*.so
+*.dylib
+ffmpeg
+ffprobe
+ffmpeg.exe
+ffprobe.exe
+
+# Model weights & cache (Whisper downloadt modellen on-the-fly)
+*.bin
+*.pt
+*.pth
+*.onnx
+models/
+.cache/
+huggingface/
+
 # Python virtual environment & cache
 venv/
 env/
@@ -24,6 +51,12 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
+
+# Node & package artifacts
+node_modules/
 
 # IDE & OS files
 .vscode/
