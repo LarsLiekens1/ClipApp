@@ -667,28 +667,6 @@ def video_graph(w, h, blur):
     return f"[0:v]{fit},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black{tail}[v]"
 
 
-def watermark_y_expression(items, w, h):
-    """Plaats het watermark per clip net onder het zichtbare videobeeld."""
-    positions = []
-    durations = []
-    for source, start, end in items:
-        if source["kind"] == "video" and source["width"] and source["height"]:
-            content_h = min(h, max(2, round(w * source["height"] / source["width"] / 2) * 2))
-            content_bottom = (h + content_h) / 2
-            y_position = f"min({content_bottom + 24:.3f}-h/2\\,H-h-24)" if content_h < h else "H-h-48"
-        else:
-            y_position = "H-h-48"
-        positions.append(y_position)
-        durations.append(end - start)
-
-    expression = positions[-1]
-    boundary = sum(durations[:-1])
-    for index in range(len(positions) - 2, -1, -1):
-        expression = f"if(lt(t\\,{boundary:.6f})\\,{positions[index]}\\,{expression})"
-        boundary -= durations[index]
-    return expression
-
-
 @app.post("/api/editor/export")
 def editor_export():
     """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
@@ -721,6 +699,13 @@ def editor_export():
         watermark = find_editor_watermark(d)
         if not watermark:
             return jsonify(error="Upload eerst een watermarkafbeelding."), 400
+        try:
+            watermark_x = float(data.get("watermark_x", 0.5))
+            watermark_y = float(data.get("watermark_y", 0.75))
+        except (TypeError, ValueError):
+            return jsonify(error="Kies een geldige positie voor het watermark."), 400
+        if not (0 <= watermark_x <= 1 and 0 <= watermark_y <= 1):
+            return jsonify(error="De positie van het watermark valt buiten de video."), 400
     out_name = f"bewerkt_{time.strftime('%H%M%S')}.{'mp3' if audio_only else 'mp4'}"
     tmp = d / "ed_tmp"                                 # tussenbestanden, worden daarna weggegooid
     shutil.rmtree(tmp, ignore_errors=True)
@@ -767,11 +752,10 @@ def editor_export():
         if audio_only:
             final += ["-c:a", "libmp3lame", "-q:a", "2"]
         elif watermark:
-            watermark_y = watermark_y_expression(items, w, h)
             final += ["-loop", "1", "-i", str(watermark),
                       "-filter_complex",
                       "[1:v]format=rgba,scale=420:420:force_original_aspect_ratio=decrease[wm];"
-                      f"[0:v][wm]overlay=(W-w)/2:{watermark_y}:eval=frame:format=auto[v]",
+                      f"[0:v][wm]overlay=(W-w)*{watermark_x:.6f}:(H-h)*{watermark_y:.6f}:format=auto[v]",
                       "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264",
                       "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
                       "-shortest", "-movflags", "+faststart"]
