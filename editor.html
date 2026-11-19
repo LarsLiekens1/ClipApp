@@ -515,6 +515,15 @@
     border: 1px solid #34D399;
     color: #fff;
   }
+  .clip .waveform {
+    position: absolute;
+    left: 14px;
+    bottom: 6px;
+    width: calc(100% - 28px);
+    height: 34px;
+    opacity: 0.9;
+    pointer-events: none;
+  }
   .clip.sel {
     border-color: #FBBF24 !important;
     box-shadow: 0 0 0 2px #F59E0B, 0 6px 20px rgba(245, 158, 11, 0.35);
@@ -1008,6 +1017,7 @@ const I18N = {
     err_empty_timeline: "De tijdlijn is leeg.",
     msg_exporting: "Exporteren en encoderen via ffmpeg... Een ogenblik geduld.",
     msg_export_success: "Export succesvol voltooid!",
+    err_waveform_load: "De audiogolfvorm kon niet worden geladen.",
     download_btn: "Download {name}",
     err_generic: "Er ging iets mis."
   },
@@ -1067,6 +1077,7 @@ const I18N = {
     err_empty_timeline: "The timeline is empty.",
     msg_exporting: "Exporting and encoding via ffmpeg... Please wait.",
     msg_export_success: "Export completed successfully!",
+    err_waveform_load: "The audio waveform could not be loaded.",
     download_btn: "Download {name}",
     err_generic: "Something went wrong."
   }
@@ -1118,6 +1129,7 @@ let watermarkY = 0.75;
 let watermarkDrag = null;
 const watermarkPreviewImage = new Image();
 const sources = {};
+const waveformImages = {};
 let clips = [];
 let sel = -1;
 let pps = 40;
@@ -1269,6 +1281,25 @@ function renderBin() {
   });
 }
 
+function drawWaveform(canvas, source, clip) {
+  let image = waveformImages[source.waveform_url];
+  if (!image) {
+    image = new Image();
+    waveformImages[source.waveform_url] = image;
+    image.onload = () => renderTimeline();
+    image.onerror = () => setStatus(t('err_waveform_load'), true);
+    image.src = source.waveform_url;
+    return;
+  }
+  if (!image.complete || !image.naturalWidth) return;
+  const start = clip.start / source.duration * image.naturalWidth;
+  const end = clip.end / source.duration * image.naturalWidth;
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, start, 0, Math.max(1, end - start), image.naturalHeight,
+                    0, 0, canvas.width, canvas.height);
+}
+
 function renderTimeline() {
   const track = $('#track');
   const width = Math.max(total() * pps + 240, $('#tl-scroll').clientWidth);
@@ -1286,6 +1317,14 @@ function renderTimeline() {
     const small = document.createElement('small');
     small.textContent = fmt(dur(c));
     label.appendChild(small);
+    if (s.waveform_url && dur(c) * pps >= 36) {
+      const waveform = document.createElement('canvas');
+      waveform.className = 'waveform';
+      waveform.width = 300;
+      waveform.height = 40;
+      b.appendChild(waveform);
+      drawWaveform(waveform, s, c);
+    }
     const hl = document.createElement('div'); hl.className = 'handle l'; hl.dataset.side = 'l';
     const hr = document.createElement('div'); hr.className = 'handle r'; hr.dataset.side = 'r';
     b.append(hl, label, hr);

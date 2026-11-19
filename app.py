@@ -602,6 +602,19 @@ def editor_upload():
     except Exception:
         path.unlink(missing_ok=True)
         return jsonify(error="Dit bestand kan ik niet lezen als video of audio."), 400
+    if info["has_audio"]:
+        waveform_path = d / f"wave_{sid}.png"
+        try:
+            run(["ffmpeg", "-y", "-i", str(path), "-filter_complex",
+                 "[0:a:0]aformat=channel_layouts=mono,showwavespic=s=1200x72:"
+                 "colors=0x6ee7b7:scale=sqrt[wave]",
+                 "-map", "[wave]", "-frames:v", "1", str(waveform_path)])
+        except RuntimeError as e:
+            path.unlink(missing_ok=True)
+            waveform_path.unlink(missing_ok=True)
+            log(f"Editor: audiogolfvorm maken mislukt voor {Path(f.filename).name}: {e}")
+            return jsonify(error=f"Kon de audiogolfvorm niet maken: {e}"), 500
+        info["waveform_url"] = f"/media/{job}/{waveform_path.name}"
     info.update(id=sid, name=Path(f.filename).name, file=path.name)
     with _src_lock:
         srcs = load_sources(d)
