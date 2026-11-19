@@ -553,6 +553,28 @@ def load_sources(d):
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
 
 
+def find_editor_watermark(d):
+    """Zoek het watermark dat voor de editor-export is geüpload."""
+    for f in sorted(d.glob("watermark.*")):
+        if f.suffix.lower() in LOGO_EXT:
+            return f
+    return None
+
+
+def validate_watermark(path):
+    """Controleer dat het bestand een ondersteunde stilstaande afbeelding is."""
+    info = json.loads(run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                           "-show_entries", "stream=codec_name,width,height",
+                           "-of", "json", str(path)]))
+    streams = info.get("streams", [])
+    if not streams or streams[0].get("codec_name") not in {"png", "mjpeg", "webp"}:
+        raise ValueError("geen ondersteunde afbeelding")
+    width, height = int(streams[0]["width"]), int(streams[0]["height"])
+    if width <= 0 or height <= 0:
+        raise ValueError("ongeldige afbeeldingsafmetingen")
+    return width, height
+
+
 @app.get("/editor")
 def editor():
     return send_file(BASE / "editor.html")
@@ -587,6 +609,36 @@ def editor_upload():
         (d / "sources.json").write_text(json.dumps(srcs), encoding="utf-8")
     log(f"Editor: {info['name']} toegevoegd ({info['kind']}, {mmss(info['duration'])})")
     return jsonify(job=job, source={**info, "url": f"/media/{job}/{path.name}"})
+
+
+@app.post("/api/editor/watermark")
+def editor_upload_watermark():
+    """Sla een watermarkafbeelding op voor verticale editor-exports."""
+    d = job_dir(request.form.get("job", ""))
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify(error="Geen bestand ontvangen."), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in LOGO_EXT:
+        return jsonify(error="Gebruik een PNG, JPG of WebP afbeelding."), 400
+
+    temp = d / f".watermark-{uuid.uuid4().hex}{ext}"
+    destination = d / f"watermark{ext}"
+    try:
+        f.save(temp)
+        if temp.stat().st_size > LOGO_MAX:
+            return jsonify(error="Het watermark mag maximaal 10 MB zijn."), 400
+        validate_watermark(temp)
+        os.replace(temp, destination)
+    except (RuntimeError, ValueError, KeyError, json.JSONDecodeError):
+        return jsonify(error="Dit bestand is geen geldige afbeelding."), 400
+    finally:
+        temp.unlink(missing_ok=True)
+
+    for old in d.glob("watermark.*"):
+        if old != destination:
+            old.unlink(missing_ok=True)
+    return jsonify(ok=True)
 
 
 def pick_size(fmt, items):
@@ -640,6 +692,20 @@ def editor_export():
     # alleen audio als er alleen audiostukken zijn, of als je dat zelf kiest
     audio_only = bool(data.get("audio_only")) or not any(s["kind"] == "video" for s, _, _ in items)
     blur = bool(data.get("blur")) and not audio_only
+    watermark = None
+    if data.get("watermark"):
+        if audio_only or data.get("format") != "vertical":
+            return jsonify(error="Een watermark kan alleen bij video-export in 9:16 worden gebruikt."), 400
+        watermark = find_editor_watermark(d)
+        if not watermark:
+            return jsonify(error="Upload eerst een watermarkafbeelding."), 400
+        try:
+            watermark_x = float(data.get("watermark_x", 0.5))
+            watermark_y = float(data.get("watermark_y", 0.75))
+        except (TypeError, ValueError):
+            return jsonify(error="Kies een geldige positie voor het watermark."), 400
+        if not (0 <= watermark_x <= 1 and 0 <= watermark_y <= 1):
+            return jsonify(error="De positie van het watermark valt buiten de video."), 400
     out_name = f"bewerkt_{time.strftime('%H%M%S')}.{'mp3' if audio_only else 'mp4'}"
     tmp = d / "ed_tmp"                                 # tussenbestanden, worden daarna weggegooid
     shutil.rmtree(tmp, ignore_errors=True)
@@ -685,6 +751,14 @@ def editor_export():
         final = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt"]
         if audio_only:
             final += ["-c:a", "libmp3lame", "-q:a", "2"]
+        elif watermark:
+            final += ["-loop", "1", "-i", str(watermark),
+                      "-filter_complex",
+                      "[1:v]format=rgba,scale=420:420:force_original_aspect_ratio=decrease[wm];"
+                      f"[0:v][wm]overlay=(W-w)*{watermark_x:.6f}:(H-h)*{watermark_y:.6f}:format=auto[v]",
+                      "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264",
+                      "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
+                      "-shortest", "-movflags", "+faststart"]
         else:                                               # beeld kopieren, geluid een keer netjes coderen
             final += ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"]
         run_ffmpeg(final + [str(d / out_name)], total_len, cwd=tmp)

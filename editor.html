@@ -699,6 +699,44 @@
     font-size: 0.95rem;
     margin-left: auto;
   }
+  #watermark-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  #watermark-controls[hidden] { display: none; }
+  #watermark-upload-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  #watermark-name {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+  #watermark-preview-panel {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  #watermark-preview-panel[hidden] { display: none; }
+  #watermark-preview {
+    display: block;
+    width: 180px;
+    height: 320px;
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm);
+    background: #080b12;
+    cursor: move;
+    touch-action: none;
+  }
+  #watermark-preview-hint {
+    max-width: 220px;
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+  }
 
   #result {
     margin-top: 20px;
@@ -888,6 +926,18 @@
       </label>
       <label><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
       <label><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
+      <div id="watermark-controls" hidden>
+        <input type="file" id="watermark-file" hidden accept="image/png,image/jpeg,image/webp">
+        <div id="watermark-upload-row">
+          <span data-i18n="watermark_label">Watermark:</span>
+          <button type="button" id="watermark-pick" data-i18n="watermark_pick">Afbeelding kiezen</button>
+          <span id="watermark-name" data-i18n="watermark_none">Geen afbeelding gekozen</span>
+        </div>
+        <div id="watermark-preview-panel" hidden>
+          <canvas id="watermark-preview" width="270" height="480" aria-label="9:16-watermarkvoorbeeld"></canvas>
+          <span id="watermark-preview-hint" data-i18n="watermark_drag_hint">Sleep het watermerk in de preview naar de gewenste plek.</span>
+        </div>
+      </div>
       <button class="primary" id="export-btn" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         <span data-i18n="btn_export">Exporteren & Samenvoegen</span>
@@ -944,6 +994,12 @@ const I18N = {
     opt_square: "Vierkant (Post 1080x1080)",
     blur_label: "Geblurde achtergrond",
     audio_only_label: "Alleen audio (MP3)",
+    watermark_label: "Watermark:",
+    watermark_pick: "Afbeelding kiezen",
+    watermark_none: "Geen afbeelding gekozen",
+    watermark_uploading: "Uploaden...",
+    watermark_ready: "Geselecteerd: {name}",
+    watermark_drag_hint: "Sleep het watermerk in de preview naar de gewenste plek.",
     btn_export: "Exporteren & Samenvoegen",
     err_split_pos: "Zet de rode lijn in het midden van een stuk om te knippen.",
     msg_copied: "Stuk gekopieerd. Plak met Ctrl+V.",
@@ -997,6 +1053,12 @@ const I18N = {
     opt_square: "Square (Post 1080x1080)",
     blur_label: "Blurred background",
     audio_only_label: "Audio only (MP3)",
+    watermark_label: "Watermark:",
+    watermark_pick: "Choose image",
+    watermark_none: "No image selected",
+    watermark_uploading: "Uploading...",
+    watermark_ready: "Selected: {name}",
+    watermark_drag_hint: "Drag the watermark in the preview to choose its position.",
     btn_export: "Export & Merge",
     err_split_pos: "Place the red line inside a clip to split.",
     msg_copied: "Clip copied. Paste with Ctrl+V.",
@@ -1048,6 +1110,13 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
 });
 
 let job = null;
+let watermarkUploaded = false;
+let watermarkUploading = false;
+let watermarkObjectUrl = null;
+let watermarkX = 0.5;
+let watermarkY = 0.75;
+let watermarkDrag = null;
+const watermarkPreviewImage = new Image();
 const sources = {};
 let clips = [];
 let sel = -1;
@@ -1421,6 +1490,7 @@ function tick() {
     const sc = $('#tl-scroll'), x = tpos * pps;
     if (x > sc.scrollLeft + sc.clientWidth - 40 || x < sc.scrollLeft) sc.scrollLeft = Math.max(0, x - 80);
   }
+  drawWatermarkPreview();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
@@ -1450,6 +1520,7 @@ function upload(file) {
       try { data = JSON.parse(xhr.responseText); } catch (e) {}
       if (xhr.status !== 200) return fail(data.error || 'uploaden mislukt');
       job = data.job;
+      syncWatermarkControls();
       sources[data.source.id] = data.source;
       row.remove();
       addSource(data.source.id);
@@ -1482,6 +1553,118 @@ $('#zoom').oninput = e => { pps = Number(e.target.value); render(false); };
 $('#audio-only').onchange = e => {
   $('#format').disabled = e.target.checked;
   $('#blur').disabled = e.target.checked;
+  syncWatermarkControls();
+};
+$('#format').onchange = syncWatermarkControls;
+function syncWatermarkControls() {
+  const visible = $('#format').value === 'vertical' && !$('#audio-only').checked;
+  $('#watermark-controls').hidden = !visible;
+  $('#watermark-preview-panel').hidden = !visible || !watermarkUploaded;
+  $('#watermark-pick').disabled = !job || watermarkUploading;
+}
+function watermarkPreviewSize() {
+  const scale = Math.min(420 / watermarkPreviewImage.naturalWidth, 420 / watermarkPreviewImage.naturalHeight) / 4;
+  return {
+    width: watermarkPreviewImage.naturalWidth * scale,
+    height: watermarkPreviewImage.naturalHeight * scale,
+  };
+}
+function watermarkPreviewPoint(event) {
+  const rect = $('#watermark-preview').getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * $('#watermark-preview').width / rect.width,
+    y: (event.clientY - rect.top) * $('#watermark-preview').height / rect.height,
+  };
+}
+function moveWatermarkPreview(point, offset) {
+  const size = watermarkPreviewSize();
+  const canvas = $('#watermark-preview');
+  watermarkX = clamp((point.x - offset.x) / Math.max(1, canvas.width - size.width), 0, 1);
+  watermarkY = clamp((point.y - offset.y) / Math.max(1, canvas.height - size.height), 0, 1);
+  drawWatermarkPreview();
+}
+function drawWatermarkPreview() {
+  const canvas = $('#watermark-preview');
+  if ($('#watermark-preview-panel').hidden) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#080b12';
+  ctx.fillRect(0, 0, w, h);
+  if (video.videoWidth && video.videoHeight && video.readyState >= 2) {
+    const cover = Math.max(w / video.videoWidth, h / video.videoHeight) * 1.08;
+    const bgW = video.videoWidth * cover, bgH = video.videoHeight * cover;
+    ctx.save();
+    ctx.filter = 'blur(8px)';
+    ctx.drawImage(video, (w - bgW) / 2, (h - bgH) / 2, bgW, bgH);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.fillRect(0, 0, w, h);
+    const fit = Math.min(w / video.videoWidth, h / video.videoHeight);
+    const fgW = video.videoWidth * fit, fgH = video.videoHeight * fit;
+    ctx.drawImage(video, (w - fgW) / 2, (h - fgH) / 2, fgW, fgH);
+  }
+  if (watermarkPreviewImage.complete && watermarkPreviewImage.naturalWidth) {
+    const size = watermarkPreviewSize();
+    const x = watermarkX * (w - size.width), y = watermarkY * (h - size.height);
+    ctx.drawImage(watermarkPreviewImage, x, y, size.width, size.height);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(x, y, size.width, size.height);
+    ctx.setLineDash([]);
+  }
+}
+$('#watermark-preview').onpointerdown = event => {
+  if (!watermarkUploaded || !watermarkPreviewImage.complete || !watermarkPreviewImage.naturalWidth) return;
+  const point = watermarkPreviewPoint(event);
+  const size = watermarkPreviewSize();
+  const canvas = $('#watermark-preview');
+  const left = watermarkX * (canvas.width - size.width);
+  const top = watermarkY * (canvas.height - size.height);
+  const inside = point.x >= left && point.x <= left + size.width &&
+                 point.y >= top && point.y <= top + size.height;
+  watermarkDrag = {
+    offset: inside ? { x: point.x - left, y: point.y - top } : { x: size.width / 2, y: size.height / 2 },
+    pointerId: event.pointerId,
+  };
+  canvas.setPointerCapture(event.pointerId);
+  if (!inside) moveWatermarkPreview(point, watermarkDrag.offset);
+};
+$('#watermark-preview').onpointermove = event => {
+  if (watermarkDrag && watermarkDrag.pointerId === event.pointerId) {
+    moveWatermarkPreview(watermarkPreviewPoint(event), watermarkDrag.offset);
+  }
+};
+$('#watermark-preview').onpointerup = event => {
+  if (watermarkDrag && watermarkDrag.pointerId === event.pointerId) watermarkDrag = null;
+};
+$('#watermark-preview').onpointercancel = () => { watermarkDrag = null; };
+$('#watermark-pick').onclick = () => $('#watermark-file').click();
+$('#watermark-file').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !job) return;
+  watermarkUploading = true;
+  $('#watermark-name').textContent = t('watermark_uploading');
+  syncWatermarkControls();
+  try {
+    const form = new FormData();
+    form.append('job', job);
+    form.append('file', file);
+    const response = await fetch('/api/editor/watermark', { method: 'POST', body: form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || t('err_generic'));
+    watermarkUploaded = true;
+    if (watermarkObjectUrl) URL.revokeObjectURL(watermarkObjectUrl);
+    watermarkObjectUrl = URL.createObjectURL(file);
+    watermarkPreviewImage.src = watermarkObjectUrl;
+    $('#watermark-name').textContent = t('watermark_ready', { name: file.name });
+  } catch (err) {
+    $('#watermark-name').textContent = err.message;
+  } finally {
+    watermarkUploading = false;
+    syncWatermarkControls();
+  }
 };
 document.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') e.target.blur(); });
 
@@ -1522,6 +1705,9 @@ $('#export-btn').onclick = async () => {
       format: $('#format').value,
       blur: $('#blur').checked,
       audio_only: $('#audio-only').checked,
+      watermark: watermarkUploaded && $('#format').value === 'vertical' && !$('#audio-only').checked,
+      watermark_x: watermarkX,
+      watermark_y: watermarkY,
     });
     const box = $('#result');
     box.innerHTML = '';
@@ -1543,6 +1729,7 @@ $('#export-btn').onclick = async () => {
 
 render();
 setLanguage(currentLang);
+syncWatermarkControls();
 </script>
 </body>
 </html>
