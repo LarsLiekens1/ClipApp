@@ -130,6 +130,39 @@
     border: 1px solid var(--border-hover);
   }
 
+  /* Language Switcher */
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 2px;
+    gap: 2px;
+    margin-left: 6px;
+  }
+  .lang-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    line-height: 1.2;
+  }
+  .lang-btn:hover {
+    color: #fff;
+  }
+  .lang-btn.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
   /* Main Container */
   main {
     max-width: 1140px;
@@ -707,30 +740,34 @@
 
 <!-- Header Navigation -->
 <header class="navbar">
-  <a href="/" class="brand">
+  <a href="/editor" class="brand">
     <div class="brand-logo">
       <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4h16V6H4v2zm0 4h6v6H4v-6zm8 0h8v6h-8v-6z"/></svg>
     </div>
     <span class="brand-text">ClipAPP</span>
-    <span class="brand-tag">Studio Editor</span>
+    <span class="brand-tag" data-i18n="tag_editor">Studio Editor</span>
   </a>
   <nav class="nav-links">
     <a href="/" class="nav-btn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-      Clipper (URL)
+      <span data-i18n="nav_clipper">Clipper (URL)</span>
     </a>
     <a href="/editor" class="nav-btn active">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-      Tijdlijn Editor
+      <span data-i18n="nav_editor">Tijdlijn Editor</span>
     </a>
+    <div class="lang-switch" role="group" aria-label="Language selection">
+      <button type="button" class="lang-btn active" data-lang="nl" title="Nederlands">NL</button>
+      <button type="button" class="lang-btn" data-lang="en" title="English">EN</button>
+    </div>
   </nav>
 </header>
 
 <main>
   <div class="head">
     <div>
-      <h1>Tijdlijn Editor</h1>
-      <p class="lead">Knip en combineer video's of audiofragmenten op een interactieve tijdlijn en exporteer direct in elk gewenst formaat.</p>
+      <h1 data-i18n="editor_title">Tijdlijn Editor</h1>
+      <p class="lead" data-i18n="editor_lead">Knip en combineer video's of audiofragmenten op een interactieve tijdlijn en exporteer direct in elk gewenst formaat.</p>
     </div>
   </div>
 
@@ -741,17 +778,17 @@
         <video id="video" playsinline></video>
         <div class="note" id="empty-note">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z"/></svg>
-          <span>Voeg rechts mediabestanden toe om te beginnen</span>
+          <span data-i18n="note_empty">Voeg rechts mediabestanden toe om te beginnen</span>
         </div>
         <div class="note" id="audio-note" hidden>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="#10B981"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-          <span style="color: #fff; font-weight: 600;">Audiospoor actief</span>
+          <span style="color: #fff; font-weight: 600;" data-i18n="note_audio">Audiospoor actief</span>
         </div>
       </div>
       <div class="transport">
         <button id="play" class="primary" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          Afspelen
+          <span id="play-text" data-i18n="btn_play">Afspelen</span>
         </button>
         <span id="clock">0:00.0 / 0:00.0</span>
       </div>
@@ -759,19 +796,19 @@
 
     <!-- Media Library / Uploads -->
     <section>
-      <h2>Mediabestanden</h2>
+      <h2 data-i18n="media_title">Mediabestanden</h2>
       <input type="file" id="file" multiple hidden accept="video/*,audio/*,.mkv,.mp3,.wav,.m4a,.flac,.ogg,.opus">
       
       <div class="drop-zone" id="drop-box">
         <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
         <div>
-          <button class="primary" id="pick">Bestanden kiezen</button>
-          <div class="muted" style="margin-top: 6px;">of sleep bestanden hierheen</div>
+          <button class="primary" id="pick" data-i18n="btn_pick">Bestanden kiezen</button>
+          <div class="muted" style="margin-top: 6px;" data-i18n="drop_hint">of sleep bestanden hierheen</div>
         </div>
       </div>
 
       <div id="uploads"></div>
-      <p class="muted" id="no-sources">Nog geen bestanden geüpload.</p>
+      <p class="muted" id="no-sources" data-i18n="no_sources">Nog geen bestanden geüpload.</p>
       <ul id="sources"></ul>
     </section>
   </div>
@@ -779,31 +816,31 @@
   <!-- Timeline Section -->
   <section>
     <div class="toolbar">
-      <button id="b-split" title="Knippen op de afspeelkop (S)">
+      <button id="b-split" title="Knippen op de afspeelkop (S)" data-i18n-title="b_split_title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm9.64-9.64L22 4V3h-3l-7 7 3.64.36z"/></svg>
-        Knippen (S)
+        <span data-i18n="b_split">Knippen (S)</span>
       </button>
-      <button id="b-del" title="Verwijderen (Delete)">
+      <button id="b-del" title="Verwijderen (Delete)" data-i18n-title="b_del_title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        Wissen
+        <span data-i18n="b_del">Wissen</span>
       </button>
-      <button id="b-dup" title="Dupliceren (D)">
+      <button id="b-dup" title="Dupliceren (D)" data-i18n-title="b_dup_title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-        Dupliceren (D)
+        <span data-i18n="b_dup">Dupliceren (D)</span>
       </button>
-      <button id="b-left" title="Naar links">◀ Links</button>
-      <button id="b-right" title="Naar rechts">Rechts ▶</button>
-      <button id="b-undo" title="Ongedaan maken (Ctrl+Z)">
+      <button id="b-left" title="Naar links" data-i18n-title="b_left_title" data-i18n="b_left">◀ Links</button>
+      <button id="b-right" title="Naar rechts" data-i18n-title="b_right_title" data-i18n="b_right">Rechts ▶</button>
+      <button id="b-undo" title="Ongedaan maken (Ctrl+Z)" data-i18n-title="b_undo_title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
-        Ongedaan
+        <span data-i18n="b_undo">Ongedaan</span>
       </button>
-      <button id="b-redo" title="Opnieuw (Ctrl+Y)">
+      <button id="b-redo" title="Opnieuw (Ctrl+Y)" data-i18n-title="b_redo_title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
-        Opnieuw
+        <span data-i18n="b_redo">Opnieuw</span>
       </button>
       <span class="grow"></span>
       <label>
-        Zoom 
+        <span data-i18n="label_zoom">Zoom</span> 
         <input type="range" id="zoom" min="5" max="200" value="40">
       </label>
     </div>
@@ -816,20 +853,20 @@
         <div id="playhead"></div>
       </div>
     </div>
-    <p class="hint"><strong>Sneltoetsen:</strong> Spatie = afspelen/pauze | S = knippen op de rode lijn | Delete = wissen | D = dupliceren | Ctrl+Z / Ctrl+Y = ongedaan / opnieuw. Sleep een blok om te verplaatsen en de randen om te trimmen.</p>
+    <p class="hint" data-i18n="hint_shortcuts"><strong>Sneltoetsen:</strong> Spatie = afspelen/pauze | S = knippen op de rode lijn | Delete = wissen | D = dupliceren | Ctrl+Z / Ctrl+Y = ongedaan / opnieuw. Sleep een blok om te verplaatsen en de randen om te trimmen.</p>
 
     <div id="clip-panel" hidden>
       <span id="c-name"></span>
       <div class="field">
-        <label for="c-start">Begin in bron</label>
+        <label for="c-start" data-i18n="c_start_label">Begin in bron</label>
         <input type="text" id="c-start">
       </div>
       <div class="field">
-        <label for="c-end">Einde in bron</label>
+        <label for="c-end" data-i18n="c_end_label">Einde in bron</label>
         <input type="text" id="c-end">
       </div>
       <div class="field">
-        <label>Lengte</label>
+        <label data-i18n="c_len_label">Lengte</label>
         <div id="c-len" class="muted"></div>
       </div>
     </div>
@@ -839,21 +876,21 @@
 
   <!-- Export Section -->
   <section>
-    <h2>Video exporteren</h2>
+    <h2 data-i18n="export_title">Video exporteren</h2>
     <div class="export-row">
-      <label>Formaat:
+      <label><span data-i18n="format_label">Formaat:</span>
         <select id="format">
-          <option value="auto">Zoals het eerste videostuk</option>
-          <option value="vertical">Verticaal 9:16 (Shorts/Reels 1080x1920)</option>
-          <option value="landscape">Liggend 16:9 (YouTube 1920x1080)</option>
-          <option value="square">Vierkant (Post 1080x1080)</option>
+          <option value="auto" data-i18n="opt_auto">Zoals het eerste videostuk</option>
+          <option value="vertical" data-i18n="opt_vertical">Verticaal 9:16 (Shorts/Reels 1080x1920)</option>
+          <option value="landscape" data-i18n="opt_landscape">Liggend 16:9 (YouTube 1920x1080)</option>
+          <option value="square" data-i18n="opt_square">Vierkant (Post 1080x1080)</option>
         </select>
       </label>
-      <label><input type="checkbox" id="blur"> Geblurde achtergrond</label>
-      <label><input type="checkbox" id="audio-only"> Alleen audio (MP3)</label>
+      <label><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
+      <label><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
       <button class="primary" id="export-btn" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-        Exporteren & Samenvoegen
+        <span data-i18n="btn_export">Exporteren & Samenvoegen</span>
       </button>
     </div>
     <div id="result" hidden></div>
@@ -863,6 +900,152 @@
 <script>
 const $ = s => document.querySelector(s);
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+
+const I18N = {
+  nl: {
+    tag_editor: "Studio Editor",
+    nav_clipper: "Clipper (URL)",
+    nav_editor: "Tijdlijn Editor",
+    editor_title: "Tijdlijn Editor",
+    editor_lead: "Knip en combineer video's of audiofragmenten op een interactieve tijdlijn en exporteer direct in elk gewenst formaat.",
+    note_empty: "Voeg rechts mediabestanden toe om te beginnen",
+    note_audio: "Audiospoor actief",
+    btn_play: "Afspelen",
+    btn_pause: "Pauze",
+    media_title: "Mediabestanden",
+    btn_pick: "Bestanden kiezen",
+    drop_hint: "of sleep bestanden hierheen",
+    no_sources: "Nog geen bestanden geüpload.",
+    btn_add_to_timeline: "+ Toevoegen",
+    b_split: "Knippen (S)",
+    b_split_title: "Knippen op de afspeelkop (S)",
+    b_del: "Wissen",
+    b_del_title: "Verwijderen (Delete)",
+    b_dup: "Dupliceren (D)",
+    b_dup_title: "Dupliceren (D)",
+    b_left: "◀ Links",
+    b_left_title: "Naar links",
+    b_right: "Rechts ▶",
+    b_right_title: "Naar rechts",
+    b_undo: "Ongedaan",
+    b_undo_title: "Ongedaan maken (Ctrl+Z)",
+    b_redo: "Opnieuw",
+    b_redo_title: "Opnieuw (Ctrl+Y)",
+    label_zoom: "Zoom",
+    hint_shortcuts: "Sneltoetsen: Spatie = afspelen/pauze | S = knippen op de rode lijn | Delete = wissen | D = dupliceren | Ctrl+Z / Ctrl+Y = ongedaan / opnieuw. Sleep een blok om te verplaatsen en de randen om te trimmen.",
+    c_start_label: "Begin in bron",
+    c_end_label: "Einde in bron",
+    c_len_label: "Lengte",
+    export_title: "Video exporteren",
+    format_label: "Formaat:",
+    opt_auto: "Zoals het eerste videostuk",
+    opt_vertical: "Verticaal 9:16 (Shorts/Reels 1080x1920)",
+    opt_landscape: "Liggend 16:9 (YouTube 1920x1080)",
+    opt_square: "Vierkant (Post 1080x1080)",
+    blur_label: "Geblurde achtergrond",
+    audio_only_label: "Alleen audio (MP3)",
+    btn_export: "Exporteren & Samenvoegen",
+    err_split_pos: "Zet de rode lijn in het midden van een stuk om te knippen.",
+    msg_copied: "Stuk gekopieerd. Plak met Ctrl+V.",
+    err_trim_range: "Kies een begin en einde tussen 0 en {max}, met minstens 0,1 seconde ertussen.",
+    err_format_playback: "De browser kan dit formaat niet direct afspelen in het voorbeeld. Exporteren werkt via ffmpeg wel.",
+    err_empty_timeline: "De tijdlijn is leeg.",
+    msg_exporting: "Exporteren en encoderen via ffmpeg... Een ogenblik geduld.",
+    msg_export_success: "Export succesvol voltooid!",
+    download_btn: "Download {name}",
+    err_generic: "Er ging iets mis."
+  },
+  en: {
+    tag_editor: "Studio Editor",
+    nav_clipper: "Clipper (URL)",
+    nav_editor: "Timeline Editor",
+    editor_title: "Timeline Editor",
+    editor_lead: "Cut and combine video or audio clips on an interactive timeline and export directly to any desired format.",
+    note_empty: "Add media files on the right to get started",
+    note_audio: "Audio track active",
+    btn_play: "Play",
+    btn_pause: "Pause",
+    media_title: "Media Files",
+    btn_pick: "Choose Files",
+    drop_hint: "or drag files here",
+    no_sources: "No files uploaded yet.",
+    btn_add_to_timeline: "+ Add",
+    b_split: "Split (S)",
+    b_split_title: "Split at playhead (S)",
+    b_del: "Delete",
+    b_del_title: "Delete (Delete)",
+    b_dup: "Duplicate (D)",
+    b_dup_title: "Duplicate (D)",
+    b_left: "◀ Left",
+    b_left_title: "Move left",
+    b_right: "Right ▶",
+    b_right_title: "Move right",
+    b_undo: "Undo",
+    b_undo_title: "Undo (Ctrl+Z)",
+    b_redo: "Redo",
+    b_redo_title: "Redo (Ctrl+Y)",
+    label_zoom: "Zoom",
+    hint_shortcuts: "Shortcuts: Space = play/pause | S = split at red line | Delete = remove | D = duplicate | Ctrl+Z / Ctrl+Y = undo / redo. Drag clip to move and edges to trim.",
+    c_start_label: "Start in source",
+    c_end_label: "End in source",
+    c_len_label: "Duration",
+    export_title: "Export Video",
+    format_label: "Format:",
+    opt_auto: "Same as first video clip",
+    opt_vertical: "Vertical 9:16 (Shorts/Reels 1080x1920)",
+    opt_landscape: "Landscape 16:9 (YouTube 1920x1080)",
+    opt_square: "Square (Post 1080x1080)",
+    blur_label: "Blurred background",
+    audio_only_label: "Audio only (MP3)",
+    btn_export: "Export & Merge",
+    err_split_pos: "Place the red line inside a clip to split.",
+    msg_copied: "Clip copied. Paste with Ctrl+V.",
+    err_trim_range: "Choose a start and end between 0 and {max}, with at least 0.1s between them.",
+    err_format_playback: "The browser cannot preview this format directly. Exporting with ffmpeg will work.",
+    err_empty_timeline: "The timeline is empty.",
+    msg_exporting: "Exporting and encoding via ffmpeg... Please wait.",
+    msg_export_success: "Export completed successfully!",
+    download_btn: "Download {name}",
+    err_generic: "Something went wrong."
+  }
+};
+
+let currentLang = localStorage.getItem('clipapp_lang') || 'nl';
+
+function t(key, params = {}) {
+  let str = (I18N[currentLang] && I18N[currentLang][key]) || (I18N['nl'] && I18N['nl'][key]) || key;
+  for (const [k, v] of Object.entries(params)) {
+    str = str.replace(`{${k}}`, v);
+  }
+  return str;
+}
+
+function setLanguage(lang) {
+  currentLang = (lang === 'en') ? 'en' : 'nl';
+  localStorage.setItem('clipapp_lang', currentLang);
+  document.documentElement.lang = currentLang;
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (I18N[currentLang][key]) el.textContent = I18N[currentLang][key];
+  });
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.dataset.i18nTitle;
+    if (I18N[currentLang][key]) el.title = I18N[currentLang][key];
+  });
+
+  syncPlayBtn();
+  renderBin();
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+});
 
 let job = null;
 const sources = {};
@@ -933,7 +1116,7 @@ function split() {
   if (!clips.length) return;
   const { i, off } = locate(tpos);
   const c = clips[i];
-  if (off < 0.1 || dur(c) - off < 0.1) return setStatus('Zet de rode lijn in het midden van een stuk om te knippen.', true);
+  if (off < 0.1 || dur(c) - off < 0.1) return setStatus(t('err_split_pos'), true);
   setStatus('');
   commit();
   const cut = c.start + off;
@@ -955,7 +1138,7 @@ function duplicateClip() {
   sel++;
   render();
 }
-function copyClip() { if (sel >= 0) { clipboard = { ...clips[sel] }; setStatus('Stuk gekopieerd. Plak met Ctrl+V.'); } }
+function copyClip() { if (sel >= 0) { clipboard = { ...clips[sel] }; setStatus(t('msg_copied')); } }
 function pasteClip() {
   if (!clipboard) return;
   commit();
@@ -978,7 +1161,7 @@ function setBounds() {
   const a = parse($('#c-start').value), b = parse($('#c-end').value);
   const max = sources[c.src].duration;
   if (isNaN(a) || isNaN(b) || a < 0 || b > max + 0.01 || b - a < 0.1) {
-    setStatus(`Kies een begin en einde tussen 0 en ${fmt(max)}, met minstens 0,1 seconde ertussen.`, true);
+    setStatus(t('err_trim_range', { max: fmt(max) }), true);
     return renderPanel();
   }
   setStatus('');
@@ -1010,7 +1193,7 @@ function renderBin() {
     meta.textContent = `${s.kind === 'video' ? '🎬 Video' : '🎵 Audio'} • ${fmt(s.duration)}`;
     info.append(name, meta);
     const add = document.createElement('button');
-    add.innerHTML = '+ Toevoegen';
+    add.innerHTML = t('btn_add_to_timeline');
     add.onclick = () => addSource(s.id);
     li.append(info, add);
     ul.appendChild(li);
@@ -1219,8 +1402,8 @@ function togglePlay() {
 }
 function syncPlayBtn() {
   $('#play').innerHTML = playing
-    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pauze'
-    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Afspelen';
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> ${t('btn_pause')}`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${t('btn_play')}`;
 }
 
 function tick() {
@@ -1321,17 +1504,17 @@ async function api(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(body) });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  if (!r.ok) throw new Error(data.error || t('err_generic'));
   return data;
 }
 
 $('#export-btn').onclick = async () => {
-  if (!clips.length) return setStatus('De tijdlijn is leeg.', true);
+  if (!clips.length) return setStatus(t('err_empty_timeline'), true);
   stop();
   const btn = $('#export-btn');
   btn.disabled = true;
   $('#result').hidden = true;
-  setStatus('Exporteren en encoderen via ffmpeg... Een ogenblik geduld.');
+  setStatus(t('msg_exporting'));
   try {
     const data = await api('/api/editor/export', {
       job,
@@ -1347,10 +1530,10 @@ $('#export-btn').onclick = async () => {
     media.src = data.url;
     const a = document.createElement('a');
     a.href = data.url; a.download = data.name;
-    a.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Download ${data.name}`;
+    a.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ${t('download_btn', { name: data.name })}`;
     box.append(media, a);
     box.hidden = false;
-    setStatus('Export succesvol voltooid!');
+    setStatus(t('msg_export_success'));
   } catch (err) {
     setStatus(err.message, true);
   } finally {
@@ -1359,6 +1542,7 @@ $('#export-btn').onclick = async () => {
 };
 
 render();
+setLanguage(currentLang);
 </script>
 </body>
 </html>

@@ -127,6 +127,39 @@
     border: 1px solid var(--border-hover);
   }
 
+  /* Language Switcher */
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 2px;
+    gap: 2px;
+    margin-left: 6px;
+  }
+  .lang-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    line-height: 1.2;
+  }
+  .lang-btn:hover {
+    color: #fff;
+  }
+  .lang-btn.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
   /* Main Container */
   main {
     max-width: 960px;
@@ -775,39 +808,43 @@
       <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4h16V6H4v2zm0 4h6v6H4v-6zm8 0h8v6h-8v-6z"/></svg>
     </div>
     <span class="brand-text">ClipAPP</span>
-    <span class="brand-tag">Clipper</span>
+    <span class="brand-tag" data-i18n="brand_tag">Clipper</span>
   </a>
   <nav class="nav-links">
     <a href="/" class="nav-btn active">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-      Clipper (URL)
+      <span data-i18n="nav_clipper">Clipper (URL)</span>
     </a>
     <a href="/editor" class="nav-btn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-      Tijdlijn Editor
+      <span data-i18n="nav_editor">Tijdlijn Editor</span>
     </a>
+    <div class="lang-switch" role="group" aria-label="Language selection">
+      <button type="button" class="lang-btn active" data-lang="nl" title="Nederlands">NL</button>
+      <button type="button" class="lang-btn" data-lang="en" title="English">EN</button>
+    </div>
   </nav>
 </header>
 
 <main>
   <div class="header-intro">
-    <h1>Video Clipper & Transcribe</h1>
-    <p>Plak een YouTube- of video-link, markeer de beste momenten en genereer automatisch korte clips met optionele ondertitels en 9:16 formaat.</p>
+    <h1 data-i18n="hero_title">Video Clipper & Transcribe</h1>
+    <p data-i18n="hero_desc">Plak een YouTube- of video-link, markeer de beste momenten en genereer automatisch korte clips met optionele ondertitels en 9:16 formaat.</p>
   </div>
 
   <section>
     <form id="load-form">
       <div class="input-wrapper">
         <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-        <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... of andere videolink" required aria-label="Link naar de video">
+        <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... of andere videolink" data-i18n-placeholder="url_placeholder" required aria-label="Link naar de video">
       </div>
       <button class="primary" id="load-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-        Video laden
+        <span data-i18n="btn_load">Video laden</span>
       </button>
     </form>
     <div class="hint-platforms">
-      <span>Ondersteunt: YouTube, Vimeo, directe MP4/WebM en andere webvideo's</span>
+      <span data-i18n="hint_platforms">Ondersteunt: YouTube, Vimeo, directe MP4/WebM en andere webvideo's</span>
     </div>
   </section>
 
@@ -820,50 +857,50 @@
     </div>
 
     <div class="timeline-header">
-      <span class="timeline-label">Tijdlijn preview</span>
-      <span style="font-size: 0.8rem; color: var(--text-muted);">Klik op de balk om te spoelen</span>
+      <span class="timeline-label" data-i18n="timeline_label">Tijdlijn preview</span>
+      <span style="font-size: 0.8rem; color: var(--text-muted);" data-i18n="timeline_hint">Klik op de balk om te spoelen</span>
     </div>
-    <div id="timeline" title="Klik om naar die plek te springen">
+    <div id="timeline" title="Klik om naar die plek te springen" data-i18n-title="timeline_title">
       <div id="playhead"></div>
     </div>
 
     <div class="cutter-box">
       <div class="times">
         <div class="field">
-          <label for="start">Starttijd</label>
+          <label for="start" data-i18n="label_start">Starttijd</label>
           <div class="pair">
             <input class="time" id="start" placeholder="0:00">
-            <button type="button" id="start-now">Start = nu</button>
+            <button type="button" id="start-now" data-i18n="btn_start_now">Start = nu</button>
           </div>
         </div>
         <div class="field">
-          <label for="end">Eindtijd</label>
+          <label for="end" data-i18n="label_end">Eindtijd</label>
           <div class="pair">
             <input class="time" id="end" placeholder="0:30">
-            <button type="button" id="end-now">Einde = nu</button>
+            <button type="button" id="end-now" data-i18n="btn_end_now">Einde = nu</button>
           </div>
         </div>
         <button type="button" id="add">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-          Stuk toevoegen
+          <span data-i18n="btn_add">Stuk toevoegen</span>
         </button>
       </div>
 
       <div class="segments-section">
         <div class="segments-header">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-          Geselecteerde stukken
+          <span data-i18n="segments_header">Geselecteerde stukken</span>
         </div>
         <ul id="segments"></ul>
-        <p class="empty" id="empty">Nog geen stukken gekozen. Speel de video af, stel start en einde in en klik op "Stuk toevoegen".</p>
+        <p class="empty" id="empty" data-i18n="segments_empty">Nog geen stukken gekozen. Speel de video af, stel start en einde in en klik op "Stuk toevoegen".</p>
       </div>
     </div>
 
-    <!-- Opties & Effecten — Geen overlap, ruim & overzichtelijk -->
+    <!-- Opties & Effecten -->
     <div class="options-box">
       <div class="options-title">
         <svg width="20" height="20" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-        Opties & Effecten
+        <span data-i18n="options_title">Opties & Effecten</span>
       </div>
 
       <div class="options-grid">
@@ -872,18 +909,18 @@
           <label class="opt-main-toggle" for="subs">
             <input type="checkbox" id="subs">
             <div class="opt-toggle-content">
-              <span class="opt-toggle-title">Ondertitels maken</span>
-              <span class="opt-toggle-desc">Automatische spraakherkenning via Whisper AI</span>
+              <span class="opt-toggle-title" data-i18n="subs_title">Ondertitels maken</span>
+              <span class="opt-toggle-desc" data-i18n="subs_desc">Automatische spraakherkenning via Whisper AI</span>
             </div>
           </label>
           <div class="opt-sub-row disabled" id="sub-lang-row">
-            <label for="lang">Taal van de video:</label>
+            <label for="lang" data-i18n="subs_lang_label">Taal van de video:</label>
             <select id="lang" disabled>
-              <option value="">Automatisch herkennen</option>
-              <option value="nl">Nederlands</option>
-              <option value="en">Engels</option>
-              <option value="fr">Frans</option>
-              <option value="de">Duits</option>
+              <option value="" data-i18n="opt_lang_auto">Automatisch herkennen</option>
+              <option value="nl" data-i18n="opt_lang_nl">Nederlands</option>
+              <option value="en" data-i18n="opt_lang_en">Engels</option>
+              <option value="fr" data-i18n="opt_lang_fr">Frans</option>
+              <option value="de" data-i18n="opt_lang_de">Duits</option>
             </select>
           </div>
         </div>
@@ -893,17 +930,17 @@
           <label class="opt-main-toggle" for="vertical">
             <input type="checkbox" id="vertical">
             <div class="opt-toggle-content">
-              <span class="opt-toggle-title">Verticaal 9:16 formaat</span>
-              <span class="opt-toggle-desc">Ideaal voor TikTok, Shorts & Reels</span>
+              <span class="opt-toggle-title" data-i18n="vert_title">Verticaal 9:16 formaat</span>
+              <span class="opt-toggle-desc" data-i18n="vert_desc">Ideaal voor TikTok, Shorts & Reels</span>
             </div>
           </label>
           <div class="opt-sub-controls disabled" id="vertical-sub-controls">
             <label class="opt-sub-toggle" for="blur">
               <input type="checkbox" id="blur" disabled>
-              <span>Geblurde achtergrond (i.p.v. zwarte balken)</span>
+              <span data-i18n="vert_blur">Geblurde achtergrond (i.p.v. zwarte balken)</span>
             </label>
             <div class="opt-sub-file">
-              <label for="logo">Logo onder de ondertitels:</label>
+              <label for="logo" data-i18n="vert_logo">Logo onder de ondertitels:</label>
               <input type="file" id="logo" accept="image/png,image/jpeg,image/webp" disabled>
             </div>
           </div>
@@ -913,12 +950,12 @@
 
     <button class="primary" id="render-btn" disabled>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-      Clips maken & exporteren
+      <span data-i18n="btn_render">Clips maken & exporteren</span>
     </button>
   </section>
 
   <section id="results" hidden>
-    <h2>Gegenereerde Clips</h2>
+    <h2 data-i18n="results_title">Gegenereerde Clips</h2>
     <div id="clips"></div>
   </section>
 </main>
@@ -928,6 +965,150 @@ const $ = s => document.querySelector(s);
 let job = null, duration = 0, segments = [];
 const player = $('#player');
 let yt = null;
+
+const I18N = {
+  nl: {
+    brand_tag: "Clipper",
+    nav_clipper: "Clipper (URL)",
+    nav_editor: "Tijdlijn Editor",
+    hero_title: "Video Clipper & Transcribe",
+    hero_desc: "Plak een YouTube- of video-link, markeer de beste momenten en genereer automatisch korte clips met optionele ondertitels en 9:16 formaat.",
+    url_placeholder: "https://www.youtube.com/watch?v=... of andere videolink",
+    btn_load: "Video laden",
+    hint_platforms: "Ondersteunt: YouTube, Vimeo, directe MP4/WebM en andere webvideo's",
+    timeline_label: "Tijdlijn preview",
+    timeline_hint: "Klik op de balk om te spoelen",
+    timeline_title: "Klik om naar die plek te springen",
+    label_start: "Starttijd",
+    btn_start_now: "Start = nu",
+    label_end: "Eindtijd",
+    btn_end_now: "Einde = nu",
+    btn_add: "Stuk toevoegen",
+    segments_header: "Geselecteerde stukken",
+    segments_empty: "Nog geen stukken gekozen. Speel de video af, stel start en einde in en klik op 'Stuk toevoegen'.",
+    options_title: "Opties & Effecten",
+    subs_title: "Ondertitels maken",
+    subs_desc: "Automatische spraakherkenning via Whisper AI",
+    subs_lang_label: "Taal van de video:",
+    opt_lang_auto: "Automatisch herkennen",
+    opt_lang_nl: "Nederlands",
+    opt_lang_en: "Engels",
+    opt_lang_fr: "Frans",
+    opt_lang_de: "Duits",
+    vert_title: "Verticaal 9:16 formaat",
+    vert_desc: "Ideaal voor TikTok, Shorts & Reels",
+    vert_blur: "Geblurde achtergrond (i.p.v. zwarte balken)",
+    vert_logo: "Logo onder de ondertitels:",
+    btn_render: "Clips maken & exporteren",
+    results_title: "Gegenereerde Clips",
+    btn_preview: "Bekijk",
+    btn_delete: "Verwijder",
+    to: "tot",
+    msg_searching: "Video wordt opgezocht...",
+    msg_loaded: "Video geladen ({duration}). Selecteer nu de stukken.",
+    msg_processing_subs: "Clips worden verwerkt en ondertiteld via Whisper. Een ogenblik...",
+    msg_processing: "Clips worden verwerkt en gerenderd. Een ogenblik...",
+    msg_done: "{count} clip(s) succesvol gegenereerd!",
+    err_times: "Vul een start en een einde in, bijvoorbeeld 1:23 of 83.",
+    err_end_before_start: "Het einde moet na de start liggen.",
+    err_end_exceeds: "De video is maar {duration} lang.",
+    err_yt_playback: "YouTube laat deze video hier niet afspelen. Je kunt de tijden zelf typen bij Start en Einde.",
+    err_yt_load: "De YouTube-speler kon niet laden. Je kunt de tijden zelf typen bij Start en Einde.",
+    err_generic: "Er ging iets mis.",
+    err_logo_upload: "Logo uploaden mislukt."
+  },
+  en: {
+    brand_tag: "Clipper",
+    nav_clipper: "Clipper (URL)",
+    nav_editor: "Timeline Editor",
+    hero_title: "Video Clipper & Transcribe",
+    hero_desc: "Paste a YouTube or video link, mark the best moments and automatically generate short clips with optional subtitles and 9:16 format.",
+    url_placeholder: "https://www.youtube.com/watch?v=... or other video link",
+    btn_load: "Load Video",
+    hint_platforms: "Supports: YouTube, Vimeo, direct MP4/WebM and other web videos",
+    timeline_label: "Timeline Preview",
+    timeline_hint: "Click on the bar to seek",
+    timeline_title: "Click to jump to this position",
+    label_start: "Start Time",
+    btn_start_now: "Start = now",
+    label_end: "End Time",
+    btn_end_now: "End = now",
+    btn_add: "Add Clip",
+    segments_header: "Selected Clips",
+    segments_empty: "No clips selected yet. Play video, set start and end times, and click 'Add Clip'.",
+    options_title: "Options & Effects",
+    subs_title: "Generate Subtitles",
+    subs_desc: "Automatic speech recognition via Whisper AI",
+    subs_lang_label: "Video language:",
+    opt_lang_auto: "Auto-detect",
+    opt_lang_nl: "Dutch",
+    opt_lang_en: "English",
+    opt_lang_fr: "French",
+    opt_lang_de: "German",
+    vert_title: "Vertical 9:16 Format",
+    vert_desc: "Ideal for TikTok, Shorts & Reels",
+    vert_blur: "Blurred background (instead of black bars)",
+    vert_logo: "Logo below subtitles:",
+    btn_render: "Generate & Export Clips",
+    results_title: "Generated Clips",
+    btn_preview: "Preview",
+    btn_delete: "Delete",
+    to: "to",
+    msg_searching: "Searching for video...",
+    msg_loaded: "Video loaded ({duration}). Select your clips now.",
+    msg_processing_subs: "Processing clips and generating subtitles with Whisper. Please wait...",
+    msg_processing: "Processing and rendering clips. Please wait...",
+    msg_done: "{count} clip(s) successfully generated!",
+    err_times: "Please enter start and end times, e.g. 1:23 or 83.",
+    err_end_before_start: "End time must be after start time.",
+    err_end_exceeds: "The video is only {duration} long.",
+    err_yt_playback: "YouTube does not allow playback here. You can manually enter Start and End times.",
+    err_yt_load: "The YouTube player could not load. You can manually enter Start and End times.",
+    err_generic: "Something went wrong.",
+    err_logo_upload: "Failed to upload logo."
+  }
+};
+
+let currentLang = localStorage.getItem('clipapp_lang') || 'nl';
+
+function t(key, params = {}) {
+  let str = (I18N[currentLang] && I18N[currentLang][key]) || (I18N['nl'] && I18N['nl'][key]) || key;
+  for (const [k, v] of Object.entries(params)) {
+    str = str.replace(`{${k}}`, v);
+  }
+  return str;
+}
+
+function setLanguage(lang) {
+  currentLang = (lang === 'en') ? 'en' : 'nl';
+  localStorage.setItem('clipapp_lang', currentLang);
+  document.documentElement.lang = currentLang;
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (I18N[currentLang][key]) el.textContent = I18N[currentLang][key];
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (I18N[currentLang][key]) el.placeholder = I18N[currentLang][key];
+  });
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.dataset.i18nTitle;
+    if (I18N[currentLang][key]) el.title = I18N[currentLang][key];
+  });
+
+  renderSegments();
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+});
 
 const videoCtl = { time: () => player.currentTime, seek: t => { player.currentTime = t; }, play: () => player.play() };
 const ytCtl = {
@@ -946,7 +1127,7 @@ function startYouTube(id) {
         playerVars: { rel: 0, playsinline: 1 },
         events: {
           onReady: () => resolve(true),
-          onError: () => setStatus('YouTube laat deze video hier niet afspelen. Je kunt de tijden zelf typen bij Start en Einde.', true),
+          onError: () => setStatus(t('err_yt_playback'), true),
         },
       });
     };
@@ -959,7 +1140,7 @@ function startYouTube(id) {
     }
     setTimeout(() => {
       if (!(yt && yt.getCurrentTime)) {
-        setStatus('De YouTube-speler kon niet laden. Je kunt de tijden zelf typen bij Start en Einde.', true);
+        setStatus(t('err_yt_load'), true);
         resolve(false);
       }
     }, 8000);
@@ -990,7 +1171,7 @@ async function api(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(body) });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  if (!r.ok) throw new Error(data.error || t('err_generic'));
   return data;
 }
 
@@ -1021,15 +1202,15 @@ function renderSegments() {
   segments.forEach((s, i) => {
     const li = document.createElement('li');
     const label = document.createElement('span');
-    label.textContent = `${fmt(s.start)} tot ${fmt(s.end)} (${Math.round(s.end - s.start)} s)`;
+    label.textContent = `${fmt(s.start)} ${t('to')} ${fmt(s.end)} (${Math.round(s.end - s.start)} s)`;
     const actions = document.createElement('span');
     actions.className = 'actions';
     const go = document.createElement('button');
-    go.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Bekijk';
+    go.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${t('btn_preview')}`;
     go.onclick = () => { ctl.seek(s.start); ctl.play(); };
     const del = document.createElement('button');
     del.className = 'btn-del';
-    del.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Verwijder';
+    del.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> ${t('btn_delete')}`;
     del.onclick = () => { segments.splice(i, 1); renderSegments(); };
     actions.append(go, del);
     li.append(label, actions);
@@ -1087,9 +1268,9 @@ vertCheck.addEventListener('change', updateVerticalState);
 
 $('#add').onclick = () => {
   const start = parse($('#start').value), end = parse($('#end').value);
-  if (isNaN(start) || isNaN(end)) return setStatus('Vul een start en een einde in, bijvoorbeeld 1:23 of 83.', true);
-  if (end <= start) return setStatus('Het einde moet na de start liggen.', true);
-  if (end > duration + 0.5) return setStatus(`De video is maar ${fmt(duration)} lang.`, true);
+  if (isNaN(start) || isNaN(end)) return setStatus(t('err_times'), true);
+  if (end <= start) return setStatus(t('err_end_before_start'), true);
+  if (end > duration + 0.5) return setStatus(t('err_end_exceeds', { duration: fmt(duration) }), true);
   segments.push({ start, end: Math.min(end, duration) });
   segments.sort((a, b) => a.start - b.start);
   $('#start').value = '';
@@ -1102,7 +1283,7 @@ $('#add').onclick = () => {
 $('#load-form').addEventListener('submit', async e => {
   e.preventDefault();
   $('#load-btn').disabled = true;
-  setStatus('Video wordt opgezocht...');
+  setStatus(t('msg_searching'));
   try {
     const data = await api('/api/load', { url: $('#url').value });
     job = data.job; duration = data.duration; segments = [];
@@ -1120,7 +1301,7 @@ $('#load-form').addEventListener('submit', async e => {
       player.src = data.video;
     }
     renderSegments();
-    if (ok) setStatus(`Video geladen (${fmt(duration)}). Selecteer nu de stukken.`);
+    if (ok) setStatus(t('msg_loaded', { duration: fmt(duration) }));
   } catch (err) {
     setStatus(err.message, true);
   } finally {
@@ -1133,8 +1314,8 @@ $('#render-btn').onclick = async () => {
   const btn = $('#render-btn');
   btn.disabled = true;
   setStatus($('#subs').checked
-    ? 'Clips worden verwerkt en ondertiteld via Whisper. Een ogenblik...'
-    : 'Clips worden verwerkt en gerenderd. Een ogenblik...');
+    ? t('msg_processing_subs')
+    : t('msg_processing'));
   try {
     let hasLogo = false;
     const logoFile = $('#logo').files[0];
@@ -1144,7 +1325,7 @@ $('#render-btn').onclick = async () => {
       fd.append('file', logoFile);
       const r = await fetch('/api/logo', { method: 'POST', body: fd });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || 'Logo uploaden mislukt.');
+      if (!r.ok) throw new Error(d.error || t('err_logo_upload'));
       hasLogo = true;
     }
     const data = await api('/api/render', {
@@ -1177,7 +1358,7 @@ $('#render-btn').onclick = async () => {
       box.appendChild(fig);
     });
     $('#results').hidden = false;
-    setStatus(`${data.clips.length} clip(s) succesvol gegenereerd!`);
+    setStatus(t('msg_done', { count: data.clips.length }));
     $('#results').scrollIntoView({ behavior: 'smooth' });
   } catch (err) {
     setStatus(err.message, true);
@@ -1185,6 +1366,10 @@ $('#render-btn').onclick = async () => {
     btn.disabled = segments.length === 0;
   }
 };
+
+// Initialiseer taal bij laden van de pagina
+setLanguage(currentLang);
+</script>
 </script>
 </body>
 </html>
