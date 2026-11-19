@@ -12,8 +12,17 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-BASE = Path(__file__).parent.resolve()
-WORK = BASE / "work"          # hier komen de clips en bewerkte bestanden (per job een map)
+if getattr(sys, "frozen", False):
+    BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
+    APP_DIR = Path(sys.executable).parent.resolve()
+else:
+    BASE = Path(__file__).parent.resolve()
+    APP_DIR = BASE
+
+bin_dir = BASE / "bin"
+app_bin = APP_DIR / "bin"
+os.environ["PATH"] = f"{bin_dir};{app_bin};{BASE};{APP_DIR};{os.environ.get('PATH', '')}"
+WORK = APP_DIR / "work"          # hier komen de clips en bewerkte bestanden (per job een map)
 WORK.mkdir(exist_ok=True)
 
 # tiny / base / small / medium - groter = nauwkeuriger maar trager op CPU
@@ -154,7 +163,33 @@ def video_size(path):
 
 
 def ytdlp(*args):
-    return run([sys.executable, "-m", "yt_dlp", "--no-playlist", *args])
+    if not getattr(sys, "frozen", False):
+        return run([sys.executable, "-m", "yt_dlp", "--no-playlist", *args])
+
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+    import yt_dlp
+
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    full_args = ["--no-playlist", *args]
+    ret = 0
+    with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
+        try:
+            ret = yt_dlp._real_main(full_args)
+        except SystemExit as se:
+            ret = se.code or 0
+        except Exception as e:
+            ret = 1
+            stderr_buf.write(str(e))
+
+    out = stdout_buf.getvalue()
+    err = stderr_buf.getvalue()
+    if ret != 0:
+        print(f"\n[FOUT] yt_dlp {' '.join(full_args[:8])} ...\n{err}", file=sys.stderr, flush=True)
+        tail = "\n".join(err.strip().splitlines()[-5:]) or "yt-dlp mislukt"
+        raise RuntimeError(tail)
+    return out
 
 
 # ---------- ondertitels ----------
@@ -670,5 +705,5 @@ def media(job, name):
 
 
 if __name__ == "__main__":
-    # alleen bereikbaar vanaf deze machine (er is geen inlog)
-    app.run(host="127.0.0.1", port=5050, threaded=True)
+    port = int(os.environ.get("PORT", 7860))
+    app.run(host="0.0.0.0", port=port, threaded=True)
