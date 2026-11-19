@@ -907,6 +907,14 @@
         <label data-i18n="c_len_label">Lengte</label>
         <div id="c-len" class="muted"></div>
       </div>
+      <div class="field">
+        <label for="c-fade-in" data-i18n="c_fade_in_label">Fade-in (sec)</label>
+        <input type="number" id="c-fade-in" min="0" step="0.1" value="0">
+      </div>
+      <div class="field">
+        <label for="c-fade-out" data-i18n="c_fade_out_label">Fade-out (sec)</label>
+        <input type="number" id="c-fade-out" min="0" step="0.1" value="0">
+      </div>
     </div>
   </section>
 
@@ -986,6 +994,8 @@ const I18N = {
     c_start_label: "Begin in bron",
     c_end_label: "Einde in bron",
     c_len_label: "Lengte",
+    c_fade_in_label: "Fade-in (sec)",
+    c_fade_out_label: "Fade-out (sec)",
     export_title: "Video exporteren",
     format_label: "Formaat:",
     opt_auto: "Zoals het eerste videostuk",
@@ -1004,6 +1014,7 @@ const I18N = {
     err_split_pos: "Zet de rode lijn in het midden van een stuk om te knippen.",
     msg_copied: "Stuk gekopieerd. Plak met Ctrl+V.",
     err_trim_range: "Kies een begin en einde tussen 0 en {max}, met minstens 0,1 seconde ertussen.",
+    err_fade_range: "De fades moeten 0 of groter zijn en samen binnen de clipduur vallen.",
     err_format_playback: "De browser kan dit formaat niet direct afspelen in het voorbeeld. Exporteren werkt via ffmpeg wel.",
     err_empty_timeline: "De tijdlijn is leeg.",
     msg_exporting: "Exporteren en encoderen via ffmpeg... Een ogenblik geduld.",
@@ -1045,6 +1056,8 @@ const I18N = {
     c_start_label: "Start in source",
     c_end_label: "End in source",
     c_len_label: "Duration",
+    c_fade_in_label: "Fade in (sec)",
+    c_fade_out_label: "Fade out (sec)",
     export_title: "Export Video",
     format_label: "Format:",
     opt_auto: "Same as first video clip",
@@ -1063,6 +1076,7 @@ const I18N = {
     err_split_pos: "Place the red line inside a clip to split.",
     msg_copied: "Clip copied. Paste with Ctrl+V.",
     err_trim_range: "Choose a start and end between 0 and {max}, with at least 0.1s between them.",
+    err_fade_range: "Fades must be zero or greater and fit within the clip duration.",
     err_format_playback: "The browser cannot preview this format directly. Exporting with ffmpeg will work.",
     err_empty_timeline: "The timeline is empty.",
     msg_exporting: "Exporting and encoding via ffmpeg... Please wait.",
@@ -1189,7 +1203,9 @@ function split() {
   setStatus('');
   commit();
   const cut = c.start + off;
-  clips.splice(i, 1, { ...c, id: nextId++, end: cut }, { ...c, id: nextId++, start: cut });
+  clips.splice(i, 1,
+    { ...c, id: nextId++, end: cut, fade_in: Math.min(c.fade_in || 0, cut - c.start), fade_out: 0 },
+    { ...c, id: nextId++, start: cut, fade_in: 0, fade_out: Math.min(c.fade_out || 0, c.end - cut) });
   sel = i + 1;
   render();
 }
@@ -1236,7 +1252,25 @@ function setBounds() {
   setStatus('');
   commit();
   c.start = a; c.end = Math.min(b, max);
+  c.fade_in = Math.min(c.fade_in || 0, dur(c));
+  c.fade_out = Math.min(c.fade_out || 0, dur(c) - c.fade_in);
   render();
+}
+function setFades() {
+  const c = clips[sel];
+  if (!c) return;
+  const fadeIn = $('#c-fade-in').value.trim() === '' ? NaN : Number($('#c-fade-in').value);
+  const fadeOut = $('#c-fade-out').value.trim() === '' ? NaN : Number($('#c-fade-out').value);
+  if (!Number.isFinite(fadeIn) || !Number.isFinite(fadeOut) ||
+      fadeIn < 0 || fadeOut < 0 || fadeIn + fadeOut > dur(c)) {
+    setStatus(t('err_fade_range'), true);
+    return renderPanel();
+  }
+  setStatus('');
+  commit();
+  c.fade_in = fadeIn;
+  c.fade_out = fadeOut;
+  render(false);
 }
 
 // ---------- renderen ----------
@@ -1322,6 +1356,8 @@ function renderPanel() {
   $('#c-start').value = fmt(c.start);
   $('#c-end').value = fmt(c.end);
   $('#c-len').textContent = fmt(dur(c));
+  $('#c-fade-in').value = (c.fade_in || 0).toFixed(1);
+  $('#c-fade-out').value = (c.fade_out || 0).toFixed(1);
 }
 
 function updateButtons() {
@@ -1360,6 +1396,8 @@ function startTrim(e, i, side) {
     const dt = (ev.clientX - x0) / pps;
     if (side === 'l') clips[i].start = clamp(c0.start + dt, 0, c0.end - 0.1);
     else clips[i].end = clamp(c0.end + dt, c0.start + 0.1, max);
+    clips[i].fade_in = Math.min(clips[i].fade_in || 0, dur(clips[i]));
+    clips[i].fade_out = Math.min(clips[i].fade_out || 0, dur(clips[i]) - clips[i].fade_in);
     render(false);
   };
   const up = () => {
@@ -1549,6 +1587,8 @@ $('#b-undo').onclick = undo;
 $('#b-redo').onclick = redo;
 $('#c-start').onchange = setBounds;
 $('#c-end').onchange = setBounds;
+$('#c-fade-in').onchange = setFades;
+$('#c-fade-out').onchange = setFades;
 $('#zoom').oninput = e => { pps = Number(e.target.value); render(false); };
 $('#audio-only').onchange = e => {
   $('#format').disabled = e.target.checked;
@@ -1701,7 +1741,10 @@ $('#export-btn').onclick = async () => {
   try {
     const data = await api('/api/editor/export', {
       job,
-      clips: clips.map(c => ({ src: c.src, start: c.start, end: c.end })),
+      clips: clips.map(c => ({
+        src: c.src, start: c.start, end: c.end,
+        fade_in: c.fade_in || 0, fade_out: c.fade_out || 0,
+      })),
       format: $('#format').value,
       blur: $('#blur').checked,
       audio_only: $('#audio-only').checked,

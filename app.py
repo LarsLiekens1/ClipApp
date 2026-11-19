@@ -649,7 +649,7 @@ def pick_size(fmt, items):
         return 1080, 1080
     if fmt == "landscape":
         return 1920, 1080
-    first = next(s for s, _, _ in items if s["kind"] == "video")
+    first = next(s for s, *_ in items if s["kind"] == "video")
     w, h = first["width"], first["height"]
     f = min(1.0, 1920 / max(w, h))                     # nooit groter dan 1920 pixels
     return max(2, round(w * f / 2) * 2), max(2, round(h * f / 2) * 2)
@@ -681,7 +681,11 @@ def editor_export():
             end = min(float(s["duration"]), float(c["end"]))
             if end - start < 0.05:
                 raise ValueError("Een stuk is te kort of ligt buiten het bestand.")
-            items.append((s, start, end))
+            fade_in = float(c.get("fade_in", 0))
+            fade_out = float(c.get("fade_out", 0))
+            if not (fade_in >= 0 and fade_out >= 0 and fade_in + fade_out <= end - start):
+                raise ValueError("De fades moeten binnen de lengte van de clip vallen.")
+            items.append((s, start, end, fade_in, fade_out))
     except KeyError:
         return jsonify(error="Een bronbestand is niet gevonden. Voeg het opnieuw toe."), 400
     except (ValueError, TypeError) as e:
@@ -690,7 +694,7 @@ def editor_export():
         return jsonify(error="De tijdlijn is leeg."), 400
 
     # alleen audio als er alleen audiostukken zijn, of als je dat zelf kiest
-    audio_only = bool(data.get("audio_only")) or not any(s["kind"] == "video" for s, _, _ in items)
+    audio_only = bool(data.get("audio_only")) or not any(s["kind"] == "video" for s, *_ in items)
     blur = bool(data.get("blur")) and not audio_only
     watermark = None
     if data.get("watermark"):
@@ -711,23 +715,30 @@ def editor_export():
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir()
     n, t_all = len(items), time.time()
-    total_len = sum(e - s for _, s, e in items)
+    total_len = sum(end - start for _, start, end, _, _ in items)
     try:
         w, h = (0, 0) if audio_only else pick_size(data.get("format"), items)
         log(f"=== Editor: {n} stuk(ken) samenvoegen tot {out_name} ({mmss(total_len)}) ===")
         lines = []
-        for k, (s, start, end) in enumerate(items, 1):
+        for k, (s, start, end, fade_in, fade_out) in enumerate(items, 1):
             length = end - start
             src = d / s["file"]
             ss = ["-ss", f"{start:.3f}", "-i", str(src)]     # -ss voor -i = snel naar de juiste plek
             silence = ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
             t = step(k, n + 1, f"Stuk {k} van {n}: {s['name']} ({mmss(start)} tot {mmss(end)})...")
+            audio_fades = []
+            if fade_in:
+                audio_fades.append(f"afade=t=in:st=0:d={fade_in:.3f}")
+            if fade_out:
+                audio_fades.append(f"afade=t=out:st={length - fade_out:.3f}:d={fade_out:.3f}")
             if audio_only:
                 seg = f"seg_{k:03}.wav"
                 if s["has_audio"]:
                     cmd = ["ffmpeg", "-y", *ss, "-t", f"{length:.3f}", "-vn"]
                 else:                                       # video zonder geluid: stilte
                     cmd = ["ffmpeg", "-y", *silence, "-t", f"{length:.3f}"]
+                if audio_fades:
+                    cmd += ["-af", ",".join(audio_fades)]
                 cmd += ["-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", seg]
             else:
                 seg = f"seg_{k:03}.mkv"
@@ -735,11 +746,23 @@ def editor_export():
                     cmd = ["ffmpeg", "-y", *ss]
                     if not s["has_audio"]:
                         cmd += silence                      # stille video krijgt stilte als geluid
-                    cmd += ["-filter_complex", video_graph(w, h, blur), "-map", "[v]",
+                    graph = video_graph(w, h, blur)
+                    video_map = "[v]"
+                    if fade_in or fade_out:
+                        video_fades = []
+                        if fade_in:
+                            video_fades.append(f"fade=t=in:st=0:d={fade_in:.3f}")
+                        if fade_out:
+                            video_fades.append(f"fade=t=out:st={length - fade_out:.3f}:d={fade_out:.3f}")
+                        graph += ";[v]" + ",".join(video_fades) + "[vf]"
+                        video_map = "[vf]"
+                    cmd += ["-filter_complex", graph, "-map", video_map,
                             "-map", "0:a:0" if s["has_audio"] else "1:a"]
                 else:                                       # audiobestand in een video: zwart beeld
                     cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=black:s={w}x{h}:r=30",
                            *ss, "-map", "0:v", "-map", "1:a", "-vf", "format=yuv420p"]
+                if audio_fades:
+                    cmd += ["-af", ",".join(audio_fades)]
                 cmd += ["-t", f"{length:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                         "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", seg]
             run_ffmpeg(cmd, length, cwd=tmp)
