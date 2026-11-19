@@ -982,7 +982,7 @@ const I18N = {
     b_redo: "Opnieuw",
     b_redo_title: "Opnieuw (Ctrl+Y)",
     label_zoom: "Zoom",
-    hint_shortcuts: "Sneltoetsen: Spatie = afspelen/pauze | S = knippen op de rode lijn | Delete = wissen | D = dupliceren | Ctrl+Z / Ctrl+Y = ongedaan / opnieuw. Sleep een blok om te verplaatsen en de randen om te trimmen.",
+    hint_shortcuts: "Sneltoetsen: Spatie = afspelen/pauze | S = knippen op de rode lijn | Delete = wissen | D = dupliceren | Ctrl+Z / Ctrl+Y = ongedaan / opnieuw. Sleep een blok om te verplaatsen en de randen om te trimmen. Trimmen klikt vast aan de afspeelkop en bronranden; houd Shift ingedrukt voor vrij trimmen.",
     c_start_label: "Begin in bron",
     c_end_label: "Einde in bron",
     c_len_label: "Lengte",
@@ -1041,7 +1041,7 @@ const I18N = {
     b_redo: "Redo",
     b_redo_title: "Redo (Ctrl+Y)",
     label_zoom: "Zoom",
-    hint_shortcuts: "Shortcuts: Space = play/pause | S = split at red line | Delete = remove | D = duplicate | Ctrl+Z / Ctrl+Y = undo / redo. Drag clip to move and edges to trim.",
+    hint_shortcuts: "Shortcuts: Space = play/pause | S = split at red line | Delete = remove | D = duplicate | Ctrl+Z / Ctrl+Y = undo / redo. Drag clips to move and their edges to trim. Trimming snaps to the playhead and source boundaries; hold Shift to trim freely.",
     c_start_label: "Start in source",
     c_end_label: "End in source",
     c_len_label: "Duration",
@@ -1358,13 +1358,40 @@ function startTrim(e, i, side) {
   const x0 = e.clientX, c0 = { ...clips[i] }, max = sources[c0.src].duration;
   const move = ev => {
     const dt = (ev.clientX - x0) / pps;
-    if (side === 'l') clips[i].start = clamp(c0.start + dt, 0, c0.end - 0.1);
-    else clips[i].end = clamp(c0.end + dt, c0.start + 0.1, max);
+    const min = side === 'l' ? 0 : c0.start + 0.1;
+    const upper = side === 'l' ? c0.end - 0.1 : max;
+    const raw = clamp((side === 'l' ? c0.start : c0.end) + dt, min, upper);
+    const tolerance = Math.min(0.25, 8 / pps);
+    const targets = [0, max];
+    clips.forEach((clip, index) => {
+      if (index !== i && clip.src === c0.src) targets.push(clip.start, clip.end);
+    });
+    const clipStart = startOf(i);
+    if (tpos >= clipStart && tpos <= clipStart + dur(c0)) {
+      targets.push(c0.start + tpos - clipStart);
+    }
+    let snapped = null;
+    if (!ev.shiftKey) {
+      for (const target of targets) {
+        if (target < min || target > upper || Math.abs(target - raw) > tolerance) continue;
+        if (snapped === null || Math.abs(target - raw) < Math.abs(snapped - raw)) snapped = target;
+      }
+    }
+    const value = snapped === null ? raw : snapped;
+    if (side === 'l') clips[i].start = value;
+    else clips[i].end = value;
     render(false);
+    const marker = $('#marker');
+    marker.hidden = snapped === null;
+    if (snapped !== null) {
+      const markerTime = clipStart + snapped - c0.start;
+      marker.style.left = (markerTime * pps - 1) + 'px';
+    }
   };
   const up = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
+    $('#marker').hidden = true;
     seek(tpos);
   };
   document.addEventListener('pointermove', move);
