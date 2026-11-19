@@ -1,3 +1,13 @@
+---
+title: ClipAPP
+emoji: 🎬
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # ClipAPP
 
 Een complete, privacy-vriendelijke video clipper en tijdlijn-editor gebouwd met Python Flask, FFmpeg, yt-dlp en faster-whisper.

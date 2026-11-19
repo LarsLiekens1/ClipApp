@@ -30,6 +30,11 @@ cookies.txt
 *.dll
 *.so
 *.dylib
+*.zip
+*.7z
+*.tar.gz
+*.spec
+bin/
 ffmpeg
 ffprobe
 ffmpeg.exe
