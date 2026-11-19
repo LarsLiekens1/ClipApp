@@ -667,6 +667,27 @@ def video_graph(w, h, blur):
     return f"[0:v]{fit},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black{tail}[v]"
 
 
+def watermark_y_expression(items, w, h):
+    """Plaats het watermark per clip midden in de onderste balk."""
+    positions = []
+    durations = []
+    for source, start, end in items:
+        if source["kind"] == "video" and source["width"] and source["height"]:
+            content_h = min(h, max(2, round(w * source["height"] / source["width"] / 2) * 2))
+            y_center = (3 * h + content_h) / 4 if content_h < h else h - 48
+        else:
+            y_center = h - 48
+        positions.append(f"{y_center:.3f}-h/2")
+        durations.append(end - start)
+
+    expression = positions[-1]
+    boundary = sum(durations[:-1])
+    for index in range(len(positions) - 2, -1, -1):
+        expression = f"if(lt(t\\,{boundary:.6f})\\,{positions[index]}\\,{expression})"
+        boundary -= durations[index]
+    return expression
+
+
 @app.post("/api/editor/export")
 def editor_export():
     """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
@@ -745,10 +766,11 @@ def editor_export():
         if audio_only:
             final += ["-c:a", "libmp3lame", "-q:a", "2"]
         elif watermark:
+            watermark_y = watermark_y_expression(items, w, h)
             final += ["-loop", "1", "-i", str(watermark),
                       "-filter_complex",
                       "[1:v]format=rgba,scale=420:420:force_original_aspect_ratio=decrease[wm];"
-                      "[0:v][wm]overlay=(W-w)/2:H-h-48:format=auto[v]",
+                      f"[0:v][wm]overlay=(W-w)/2:{watermark_y}:eval=frame:format=auto[v]",
                       "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264",
                       "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
                       "-shortest", "-movflags", "+faststart"]
