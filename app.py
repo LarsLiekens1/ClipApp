@@ -692,6 +692,16 @@ def editor_export():
     # alleen audio als er alleen audiostukken zijn, of als je dat zelf kiest
     audio_only = bool(data.get("audio_only")) or not any(s["kind"] == "video" for s, _, _ in items)
     blur = bool(data.get("blur")) and not audio_only
+    crossfade = bool(data.get("crossfade")) and len(items) > 1
+    crossfade_duration = 0.0
+    if crossfade:
+        try:
+            crossfade_duration = float(data.get("crossfade_duration", 0.5))
+        except (TypeError, ValueError):
+            return jsonify(error="Kies een geldige duur voor de overgangen."), 400
+        shortest_clip = min(end - start for _, start, end in items)
+        if not (0.1 <= crossfade_duration <= 3 and crossfade_duration * 2 <= shortest_clip):
+            return jsonify(error="De overgang moet maximaal de helft van de kortste clip duren (maximaal 3 seconden)."), 400
     watermark = None
     if data.get("watermark"):
         if audio_only or data.get("format") != "vertical":
@@ -712,6 +722,7 @@ def editor_export():
     tmp.mkdir()
     n, t_all = len(items), time.time()
     total_len = sum(e - s for _, s, e in items)
+    output_len = total_len - crossfade_duration * (n - 1) if crossfade else total_len
     try:
         w, h = (0, 0) if audio_only else pick_size(data.get("format"), items)
         log(f"=== Editor: {n} stuk(ken) samenvoegen tot {out_name} ({mmss(total_len)}) ===")
@@ -748,20 +759,68 @@ def editor_export():
 
         (tmp / "list.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
         t = step(n + 1, n + 1, "Stukken samenvoegen...")
-        final = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt"]
-        if audio_only:
-            final += ["-c:a", "libmp3lame", "-q:a", "2"]
-        elif watermark:
-            final += ["-loop", "1", "-i", str(watermark),
-                      "-filter_complex",
-                      "[1:v]format=rgba,scale=420:420:force_original_aspect_ratio=decrease[wm];"
-                      f"[0:v][wm]overlay=(W-w)*{watermark_x:.6f}:(H-h)*{watermark_y:.6f}:format=auto[v]",
-                      "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264",
-                      "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
-                      "-shortest", "-movflags", "+faststart"]
-        else:                                               # beeld kopieren, geluid een keer netjes coderen
-            final += ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"]
-        run_ffmpeg(final + [str(d / out_name)], total_len, cwd=tmp)
+        if crossfade:
+            segments = [f"seg_{k:03}.{'wav' if audio_only else 'mkv'}" for k in range(1, n + 1)]
+            final = ["ffmpeg", "-y"]
+            for segment in segments:
+                final += ["-i", segment]
+
+            filters = []
+            audio_label = "[0:a]"
+            for k in range(1, n):
+                next_audio = f"[a{k}]"
+                filters.append(
+                    f"{audio_label}[{k}:a]acrossfade=d={crossfade_duration:.3f}:c1=tri:c2=tri{next_audio}"
+                )
+                audio_label = next_audio
+
+            if audio_only:
+                filters.append(f"{audio_label}anull[aout]")
+                final += ["-filter_complex", ";".join(filters), "-map", "[aout]",
+                          "-c:a", "libmp3lame", "-q:a", "2"]
+            else:
+                for k in range(n):
+                    filters.append(f"[{k}:v]settb=AVTB,setpts=PTS-STARTPTS[v{k}]")
+                video_label = "[v0]"
+                for k in range(1, n):
+                    next_video = f"[v{k}]"
+                    offset = sum(end - start for _, start, end in items[:k]) - crossfade_duration * k
+                    filters.append(
+                        f"{video_label}[v{k}]xfade=transition=fade:duration={crossfade_duration:.3f}:"
+                        f"offset={offset:.6f}{next_video}"
+                    )
+                    video_label = next_video
+                if watermark:
+                    watermark_index = n
+                    final += ["-loop", "1", "-i", str(watermark)]
+                    filters.append(
+                        f"[{watermark_index}:v]format=rgba,scale=420:420:"
+                        "force_original_aspect_ratio=decrease[wm]"
+                    )
+                    filters.append(
+                        f"{video_label}[wm]overlay=(W-w)*{watermark_x:.6f}:"
+                        f"(H-h)*{watermark_y:.6f}:format=auto[vout]"
+                    )
+                    video_label = "[vout]"
+                final += ["-filter_complex", ";".join(filters), "-map", video_label,
+                          "-map", audio_label, "-c:v", "libx264", "-preset", "veryfast",
+                          "-crf", "18", "-c:a", "aac", "-b:a", "192k",
+                          "-shortest", "-movflags", "+faststart"]
+        else:
+            final = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt"]
+            if audio_only:
+                final += ["-c:a", "libmp3lame", "-q:a", "2"]
+            elif watermark:
+                final += ["-loop", "1", "-i", str(watermark),
+                          "-filter_complex",
+                          "[1:v]format=rgba,scale=420:420:force_original_aspect_ratio=decrease[wm];"
+                          f"[0:v][wm]overlay=(W-w)*{watermark_x:.6f}:(H-h)*{watermark_y:.6f}:format=auto[v]",
+                          "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264",
+                          "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
+                          "-shortest", "-movflags", "+faststart"]
+            else:                                           # beeld kopieren, geluid een keer netjes coderen
+                final += ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"]
+        run_ffmpeg(final + [str(d / out_name)], output_len, cwd=tmp)
         step_done(t)
     except Exception as e:
         log(f"MISLUKT: {e}")

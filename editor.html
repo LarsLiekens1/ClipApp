@@ -737,6 +737,9 @@
     color: var(--text-secondary);
     font-size: 0.84rem;
   }
+  #crossfade-duration {
+    width: 76px;
+  }
 
   #result {
     margin-top: 20px;
@@ -926,6 +929,10 @@
       </label>
       <label><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
       <label><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
+      <label><input type="checkbox" id="crossfade"> <span data-i18n="crossfade_label">Overgangen tussen clips</span></label>
+      <label><span data-i18n="crossfade_duration_label">Duur (sec)</span>
+        <input type="number" id="crossfade-duration" min="0.1" max="3" step="0.1" value="0.5" disabled>
+      </label>
       <div id="watermark-controls" hidden>
         <input type="file" id="watermark-file" hidden accept="image/png,image/jpeg,image/webp">
         <div id="watermark-upload-row">
@@ -994,6 +1001,8 @@ const I18N = {
     opt_square: "Vierkant (Post 1080x1080)",
     blur_label: "Geblurde achtergrond",
     audio_only_label: "Alleen audio (MP3)",
+    crossfade_label: "Overgangen tussen clips",
+    crossfade_duration_label: "Duur (sec)",
     watermark_label: "Watermark:",
     watermark_pick: "Afbeelding kiezen",
     watermark_none: "Geen afbeelding gekozen",
@@ -1053,6 +1062,8 @@ const I18N = {
     opt_square: "Square (Post 1080x1080)",
     blur_label: "Blurred background",
     audio_only_label: "Audio only (MP3)",
+    crossfade_label: "Crossfade between clips",
+    crossfade_duration_label: "Duration (sec)",
     watermark_label: "Watermark:",
     watermark_pick: "Choose image",
     watermark_none: "No image selected",
@@ -1555,6 +1566,9 @@ $('#audio-only').onchange = e => {
   $('#blur').disabled = e.target.checked;
   syncWatermarkControls();
 };
+$('#crossfade').onchange = e => {
+  $('#crossfade-duration').disabled = !e.target.checked;
+};
 $('#format').onchange = syncWatermarkControls;
 function syncWatermarkControls() {
   const visible = $('#format').value === 'vertical' && !$('#audio-only').checked;
@@ -1705,6 +1719,8 @@ $('#export-btn').onclick = async () => {
       format: $('#format').value,
       blur: $('#blur').checked,
       audio_only: $('#audio-only').checked,
+      crossfade: $('#crossfade').checked,
+      crossfade_duration: Number($('#crossfade-duration').value),
       watermark: watermarkUploaded && $('#format').value === 'vertical' && !$('#audio-only').checked,
       watermark_x: watermarkX,
       watermark_y: watermarkY,
