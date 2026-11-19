@@ -668,16 +668,17 @@ def video_graph(w, h, blur):
 
 
 def watermark_y_expression(items, w, h):
-    """Plaats het watermark per clip midden in de onderste balk."""
+    """Plaats het watermark per clip net onder het zichtbare videobeeld."""
     positions = []
     durations = []
     for source, start, end in items:
         if source["kind"] == "video" and source["width"] and source["height"]:
             content_h = min(h, max(2, round(w * source["height"] / source["width"] / 2) * 2))
-            y_center = (3 * h + content_h) / 4 if content_h < h else h - 48
+            content_bottom = (h + content_h) / 2
+            y_position = f"min({content_bottom + 24:.3f}\\,H-h-24)" if content_h < h else "H-h-48"
         else:
-            y_center = h - 48
-        positions.append(f"{y_center:.3f}-h/2")
+            y_position = "H-h-48"
+        positions.append(y_position)
         durations.append(end - start)
 
     expression = positions[-1]
