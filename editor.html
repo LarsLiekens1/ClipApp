@@ -699,6 +699,16 @@
     font-size: 0.95rem;
     margin-left: auto;
   }
+  #watermark-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #watermark-controls[hidden] { display: none; }
+  #watermark-name {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
 
   #result {
     margin-top: 20px;
@@ -888,6 +898,13 @@
       </label>
       <label><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
       <label><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
+      <div id="watermark-controls" hidden>
+        <input type="file" id="watermark-file" hidden accept="image/png,image/jpeg,image/webp">
+        <span data-i18n="watermark_label">Watermark:</span>
+        <button type="button" id="watermark-pick" data-i18n="watermark_pick">Afbeelding kiezen</button>
+        <span id="watermark-name" data-i18n="watermark_none">Geen afbeelding gekozen</span>
+        <span id="watermark-hint" data-i18n="watermark_position_hint">Wordt onderaan gecentreerd geplaatst bij 9:16-export.</span>
+      </div>
       <button class="primary" id="export-btn" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         <span data-i18n="btn_export">Exporteren & Samenvoegen</span>
@@ -944,6 +961,12 @@ const I18N = {
     opt_square: "Vierkant (Post 1080x1080)",
     blur_label: "Geblurde achtergrond",
     audio_only_label: "Alleen audio (MP3)",
+    watermark_label: "Watermark:",
+    watermark_pick: "Afbeelding kiezen",
+    watermark_none: "Geen afbeelding gekozen",
+    watermark_uploading: "Uploaden...",
+    watermark_ready: "Geselecteerd: {name}",
+    watermark_position_hint: "Wordt onderaan gecentreerd geplaatst bij 9:16-export.",
     btn_export: "Exporteren & Samenvoegen",
     err_split_pos: "Zet de rode lijn in het midden van een stuk om te knippen.",
     msg_copied: "Stuk gekopieerd. Plak met Ctrl+V.",
@@ -997,6 +1020,12 @@ const I18N = {
     opt_square: "Square (Post 1080x1080)",
     blur_label: "Blurred background",
     audio_only_label: "Audio only (MP3)",
+    watermark_label: "Watermark:",
+    watermark_pick: "Choose image",
+    watermark_none: "No image selected",
+    watermark_uploading: "Uploading...",
+    watermark_ready: "Selected: {name}",
+    watermark_position_hint: "Centered at the bottom of 9:16 exports.",
     btn_export: "Export & Merge",
     err_split_pos: "Place the red line inside a clip to split.",
     msg_copied: "Clip copied. Paste with Ctrl+V.",
@@ -1048,6 +1077,8 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
 });
 
 let job = null;
+let watermarkUploaded = false;
+let watermarkUploading = false;
 const sources = {};
 let clips = [];
 let sel = -1;
@@ -1450,6 +1481,7 @@ function upload(file) {
       try { data = JSON.parse(xhr.responseText); } catch (e) {}
       if (xhr.status !== 200) return fail(data.error || 'uploaden mislukt');
       job = data.job;
+      syncWatermarkControls();
       sources[data.source.id] = data.source;
       row.remove();
       addSource(data.source.id);
@@ -1482,6 +1514,37 @@ $('#zoom').oninput = e => { pps = Number(e.target.value); render(false); };
 $('#audio-only').onchange = e => {
   $('#format').disabled = e.target.checked;
   $('#blur').disabled = e.target.checked;
+  syncWatermarkControls();
+};
+$('#format').onchange = syncWatermarkControls;
+function syncWatermarkControls() {
+  const visible = $('#format').value === 'vertical' && !$('#audio-only').checked;
+  $('#watermark-controls').hidden = !visible;
+  $('#watermark-pick').disabled = !job || watermarkUploading;
+}
+$('#watermark-pick').onclick = () => $('#watermark-file').click();
+$('#watermark-file').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !job) return;
+  watermarkUploading = true;
+  $('#watermark-name').textContent = t('watermark_uploading');
+  syncWatermarkControls();
+  try {
+    const form = new FormData();
+    form.append('job', job);
+    form.append('file', file);
+    const response = await fetch('/api/editor/watermark', { method: 'POST', body: form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || t('err_generic'));
+    watermarkUploaded = true;
+    $('#watermark-name').textContent = t('watermark_ready', { name: file.name });
+  } catch (err) {
+    $('#watermark-name').textContent = err.message;
+  } finally {
+    watermarkUploading = false;
+    syncWatermarkControls();
+  }
 };
 document.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') e.target.blur(); });
 
@@ -1522,6 +1585,7 @@ $('#export-btn').onclick = async () => {
       format: $('#format').value,
       blur: $('#blur').checked,
       audio_only: $('#audio-only').checked,
+      watermark: watermarkUploaded && $('#format').value === 'vertical' && !$('#audio-only').checked,
     });
     const box = $('#result');
     box.innerHTML = '';
@@ -1543,6 +1607,7 @@ $('#export-btn').onclick = async () => {
 
 render();
 setLanguage(currentLang);
+syncWatermarkControls();
 </script>
 </body>
 </html>
