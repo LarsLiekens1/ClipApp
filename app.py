@@ -675,7 +675,7 @@ def watermark_y_expression(items, w, h):
         if source["kind"] == "video" and source["width"] and source["height"]:
             content_h = min(h, max(2, round(w * source["height"] / source["width"] / 2) * 2))
             content_bottom = (h + content_h) / 2
-            y_position = f"min({content_bottom + 24:.3f}\\,H-h-24)" if content_h < h else "H-h-48"
+            y_position = f"min({content_bottom + 24:.3f}-h/2\\,H-h-24)" if content_h < h else "H-h-48"
         else:
             y_position = "H-h-48"
         positions.append(y_position)
