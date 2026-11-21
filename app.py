@@ -12,7 +12,7 @@ import wave
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
-from colorama import Fore, Style
+from colorama import Fore, Style, just_fix_windows_console
 from dotenv import load_dotenv
 
 from delivery import (
@@ -56,6 +56,33 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = None
 _model = None                 # Whisper-model wordt pas geladen bij de eerste keer ondertitelen
 _src_lock = threading.Lock()  # voorkomt dat twee uploads tegelijk sources.json overschrijven
+
+
+def print_startup_banner(port):
+    just_fix_windows_console()
+    title = "ClipAPP - Local Video Workspace"
+    print(f"\033]0;{title}\007", end="", flush=True)
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
+
+    url = f"http://127.0.0.1:{port}"
+    logo = r"""
+   ____ _ _       _    ___  ___
+  / ___| (_)_ __ | |  / _ \| _ \
+ | |   | | | '_ \| | | | | |  _/
+ | |___| | | |_) | |_| |_| | |
+  \____|_|_| .__/ \___/___/|_|
+           |_|
+"""
+    print(f"{Fore.CYAN}{logo}{Style.RESET_ALL}")
+    print(f"  {Fore.MAGENTA}CLIPAPP // LOCAL VIDEO STUDIO{Style.RESET_ALL}")
+    print(f"  {Fore.GREEN}[SERVER]  {url}{Style.RESET_ALL}")
+    print(f"  {Fore.YELLOW}[CLIPPER] {url}/{Style.RESET_ALL}")
+    print(f"  {Fore.YELLOW}[EDITOR]  {url}/editor{Style.RESET_ALL}")
+    print(f"  {Fore.LIGHTBLACK_EX}{'-' * 52}{Style.RESET_ALL}")
+    print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
 
 
 def run(cmd, cwd=None):
@@ -870,4 +897,5 @@ def media(job, name):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
+    print_startup_banner(port)
     app.run(host="0.0.0.0", port=port, threaded=True)
