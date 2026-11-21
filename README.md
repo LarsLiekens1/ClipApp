@@ -164,7 +164,7 @@ flowchart TD
 
    De starter maakt automatisch een `.venv` aan, installeert de Python-packages uit `requirements.txt` en opent de localhost-pagina in je gewone browser. ClipAPP draait alleen in de terminal en je browser; er is geen ingebouwd desktopvenster. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
 
-   Gebruik `python start.py` of `ClipAPP.bat` voor de kleurrijke terminal en de server op poort `5050`. `python app.py` is de container/Hugging Face-startmethode en gebruikt standaard poort `7860`.
+   Zowel `python start.py` als `python app.py` toont de kleurrijke terminalbanner. `start.py` opent de browser, bindt alleen aan je eigen computer en gebruikt poort `5050`; `app.py` gebruikt standaard poort `7860` en is de container/Hugging Face-startmethode.
 
 3. Open je browser op:
    - **Clipper**: `http://127.0.0.1:5050/`
