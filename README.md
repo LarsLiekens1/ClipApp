@@ -140,6 +140,7 @@ flowchart TD
 
 - Python 3.10 of nieuwer
 - [FFmpeg](https://ffmpeg.org/download.html) geïnstalleerd en bereikbaar via je systeem PATH.
+- Ubuntu/Debian: installeer ook de benodigde systeemprogramma's met `sudo apt install python3-venv ffmpeg`.
 
 ---
 
@@ -147,32 +148,26 @@ flowchart TD
 
 1. **Clone de repository**:
    ```bash
-   git clone https://github.com/jouw-gebruikersnaam/clipAPP.git
-   cd clipAPP
+   git clone https://github.com/LarsLiekens1/ClipApp.git
+   cd ClipApp
    ```
 
-2. **Maak een virtuele omgeving aan en activeer deze**:
+2. **Start de app** (de eerste keer kan dit even duren):
    ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # macOS/Linux:
-   source venv/bin/activate
+   # Windows
+   python start.py
+
+   # macOS/Linux
+   python3 start.py
    ```
 
-3. **Installeer de benodigde packages**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+   De starter maakt automatisch een `.venv` aan en installeert de Python-packages uit `requirements.txt`. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
 
-4. **Start de app**:
-   ```bash
-   python app.py
-   ```
-
-5. Open je browser op:
+3. Open je browser op:
    - **Clipper**: `http://127.0.0.1:5050/`
    - **Tijdlijn Editor**: `http://127.0.0.1:5050/editor`
+
+FFmpeg is een apart systeemprogramma en wordt niet automatisch geïnstalleerd. Op Ubuntu/Debian kun je het installeren met `sudo apt install python3-venv ffmpeg`. Als apt meldt dat het vergrendeld is door automatische updates, wacht dan tot die klaar zijn en probeer opnieuw; verwijder het lock-bestand niet.
 
 ---
 

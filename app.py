@@ -21,7 +21,9 @@ else:
 
 bin_dir = BASE / "bin"
 app_bin = APP_DIR / "bin"
-os.environ["PATH"] = f"{bin_dir};{app_bin};{BASE};{APP_DIR};{os.environ.get('PATH', '')}"
+os.environ["PATH"] = os.pathsep.join(
+    str(path) for path in (bin_dir, app_bin, BASE, APP_DIR, os.environ.get("PATH", ""))
+)
 WORK = APP_DIR / "work"          # hier komen de clips en bewerkte bestanden (per job een map)
 WORK.mkdir(exist_ok=True)
 
