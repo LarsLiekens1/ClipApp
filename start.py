@@ -68,6 +68,13 @@ def run_server():
 
 
 def print_banner():
+    title = "ClipAPP - Local Video Workspace"
+    print(f"\033]0;{title}\007", end="", flush=True)
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
+
     logo = r"""
    ____ _ _       _    ___  ___
   / ___| (_)_ __ | |  / _ \| _ \
