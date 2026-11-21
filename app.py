@@ -29,7 +29,7 @@ else:
     BASE = Path(__file__).parent.resolve()
     APP_DIR = BASE
 
-load_dotenv(BASE / ".env")
+load_dotenv((APP_DIR if getattr(sys, "frozen", False) else BASE) / ".env")
 
 bin_dir = BASE / "bin"
 app_bin = APP_DIR / "bin"

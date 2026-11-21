@@ -1,11 +1,11 @@
+import base64
 import os
 import re
-import smtplib
-import ssl
 from email.message import EmailMessage
 from pathlib import Path
 
 MAX_ATTACHMENT_BYTES = 17 * 1024 * 1024
+GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 
 
@@ -29,63 +29,17 @@ def _validate_recipient(recipient):
     return recipient
 
 
-def _smtp_settings():
-    username = os.environ.get("SMTP_USER", "").strip()
-    password = os.environ.get("SMTP_PASSWORD", "")
-    if not username or not password:
-        raise DeliveryConfigurationError(
-            "Stel SMTP_USER en SMTP_PASSWORD in je lokale .env-bestand in. "
-            "Gebruik voor Gmail een app-wachtwoord."
-        )
-    try:
-        port = int(os.environ.get("SMTP_PORT", "587"))
-    except ValueError as exc:
-        raise DeliveryConfigurationError("SMTP_PORT moet een getal zijn.") from exc
-    sender = os.environ.get("SMTP_FROM", username).strip()
-    if not re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", sender):
-        raise DeliveryConfigurationError("SMTP_FROM moet een geldig e-mailadres zijn.")
-    return (
-        os.environ.get("SMTP_HOST", "smtp.gmail.com").strip(),
-        port,
-        username,
-        password,
-        sender,
-    )
-
-
-def _send_smtp(message, settings):
-    host, port, username, password, _ = settings
-    try:
-        if port == 465:
-            with smtplib.SMTP_SSL(
-                host, port, timeout=30, context=ssl.create_default_context()
-            ) as server:
-                server.login(username, password)
-                server.send_message(message)
-        else:
-            with smtplib.SMTP(host, port, timeout=30) as server:
-                server.ehlo()
-                server.starttls(context=ssl.create_default_context())
-                server.ehlo()
-                server.login(username, password)
-                server.send_message(message)
-    except (OSError, smtplib.SMTPException) as exc:
-        raise DeliveryError(f"E-mail verzenden mislukt: {exc}") from exc
-
-
-def _drive_link(path, recipient):
+def _google_credentials(scopes, token_name):
     try:
         from google.auth.exceptions import GoogleAuthError
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
         from google_auth_oauthlib.flow import InstalledAppFlow
-        from httplib2 import HttpLib2Error
-        from googleapiclient.discovery import build
-        from googleapiclient.errors import HttpError
-        from googleapiclient.http import MediaIoBaseUpload
+        from oauthlib.oauth2.rfc6749.errors import OAuth2Error
+        from requests.exceptions import RequestException
     except ImportError as exc:
         raise DeliveryConfigurationError(
-            "Google Drive-ondersteuning ontbreekt. Start ClipAPP opnieuw om dependencies te installeren."
+            "Google OAuth-ondersteuning ontbreekt. Start ClipAPP opnieuw om dependencies te installeren."
         ) from exc
 
     config_dir = Path.home() / ".clipapp"
@@ -95,7 +49,7 @@ def _drive_link(path, recipient):
             str(config_dir / "google_oauth_client.json"),
         )
     ).expanduser()
-    token_file = config_dir / "google_drive_token.json"
+    token_file = config_dir / token_name
     try:
         config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         if os.name != "nt":
@@ -109,7 +63,7 @@ def _drive_link(path, recipient):
         if token_file.is_file():
             try:
                 credentials = Credentials.from_authorized_user_file(
-                    str(token_file), [DRIVE_SCOPE]
+                    str(token_file), scopes
                 )
             except (OSError, ValueError) as exc:
                 raise DeliveryConfigurationError(
@@ -120,14 +74,76 @@ def _drive_link(path, recipient):
             if credentials and credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(client_file), [DRIVE_SCOPE]
-                )
+                try:
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        str(client_file), scopes
+                    )
+                except (OSError, ValueError) as exc:
+                    raise DeliveryConfigurationError(
+                        f"Het Google OAuth-clientbestand is ongeldig: {client_file}"
+                    ) from exc
                 credentials = flow.run_local_server(port=0, open_browser=True)
-            token_file.write_text(credentials.to_json(), encoding="utf-8")
-            if os.name != "nt":
-                token_file.chmod(0o600)
 
+            try:
+                token_file.write_text(credentials.to_json(), encoding="utf-8")
+                if os.name != "nt":
+                    token_file.chmod(0o600)
+            except OSError as exc:
+                raise DeliveryConfigurationError(
+                    f"Het Google-tokenbestand kon niet worden opgeslagen: {token_file}"
+                ) from exc
+
+        return credentials
+    except DeliveryConfigurationError:
+        raise
+    except (GoogleAuthError, OAuth2Error, RequestException, OSError, ValueError) as exc:
+        raise DeliveryError(f"Google OAuth-aanmelding mislukt: {exc}") from exc
+
+
+def _gmail_send(message):
+    try:
+        from httplib2 import HttpLib2Error
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+    except ImportError as exc:
+        raise DeliveryConfigurationError(
+            "Gmail API-ondersteuning ontbreekt. Start ClipAPP opnieuw om dependencies te installeren."
+        ) from exc
+
+    credentials = _google_credentials(
+        [GMAIL_SEND_SCOPE], "google_gmail_token.json"
+    )
+    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+    try:
+        sent = (
+            build("gmail", "v1", credentials=credentials, cache_discovery=False)
+            .users()
+            .messages()
+            .send(userId="me", body={"raw": raw_message})
+            .execute()
+        )
+        if not sent.get("id"):
+            raise DeliveryError("Gmail heeft geen bevestiging van de verzending teruggegeven.")
+    except DeliveryError:
+        raise
+    except (HttpError, HttpLib2Error, OSError, ValueError) as exc:
+        raise DeliveryError(f"Gmail e-mail verzenden mislukt: {exc}") from exc
+
+
+def _drive_link(path, recipient):
+    try:
+        from google.auth.exceptions import GoogleAuthError
+        from httplib2 import HttpLib2Error
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+        from googleapiclient.http import MediaIoBaseUpload
+    except ImportError as exc:
+        raise DeliveryConfigurationError(
+            "Google Drive-ondersteuning ontbreekt. Start ClipAPP opnieuw om dependencies te installeren."
+        ) from exc
+
+    credentials = _google_credentials([DRIVE_SCOPE], "google_drive_token.json")
+    try:
         service = build("drive", "v3", credentials=credentials, cache_discovery=False)
         with path.open("rb") as video_file:
             media = MediaIoBaseUpload(
@@ -162,9 +178,14 @@ def deliver_clip(path, recipient):
     if not path.is_file() or path.suffix.lower() != ".mp4":
         raise DeliveryError("De MP4-video is niet gevonden.")
 
-    settings = _smtp_settings()
+    sender = os.environ.get("GMAIL_FROM", "").strip()
+    if not re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", sender):
+        raise DeliveryConfigurationError(
+            "Stel GMAIL_FROM in op het e-mailadres van het Google-account waarmee je inlogt."
+        )
+
     message = EmailMessage()
-    message["From"] = settings[4]
+    message["From"] = sender
     message["To"] = recipient
     message["Subject"] = f"Je ClipAPP-video: {path.name}"
 
@@ -176,7 +197,7 @@ def deliver_clip(path, recipient):
             subtype="mp4",
             filename=path.name,
         )
-        _send_smtp(message, settings)
+        _gmail_send(message)
         return {"delivery": "attachment"}
 
     link = _drive_link(path, recipient)
@@ -186,7 +207,7 @@ def deliver_clip(path, recipient):
         f"{link}"
     )
     try:
-        _send_smtp(message, settings)
+        _gmail_send(message)
     except DeliveryError as exc:
         raise DeliveryError(
             f"{exc} De video staat wel in Google Drive; gebruik deze link: {link}"
