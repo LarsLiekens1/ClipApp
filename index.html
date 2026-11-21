@@ -208,7 +208,7 @@
     font: inherit;
     outline: none;
   }
-  input[type=url], input.time, select {
+  input[type=url], input[type=email], input.time, select {
     padding: 12px 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -216,7 +216,7 @@
     color: var(--text-primary);
     transition: all 0.2s ease;
   }
-  input[type=url]:focus, input.time:focus, select:focus {
+  input[type=url]:focus, input[type=email]:focus, input.time:focus, select:focus {
     border-color: var(--border-focus);
     box-shadow: 0 0 0 3px var(--accent-glow);
     background: rgba(15, 23, 42, 0.95);
@@ -786,6 +786,18 @@
     border-color: var(--accent);
     color: #fff;
   }
+  .clip-email {
+    display: flex;
+    gap: 8px;
+    padding: 0 14px 14px;
+  }
+  .clip-email input {
+    flex: 1;
+    min-width: 0;
+  }
+  .clip-email button {
+    flex: none;
+  }
 
   @media (max-width: 640px) {
     .navbar { padding: 12px 16px; }
@@ -793,6 +805,7 @@
     .times { flex-direction: column; align-items: stretch; }
     .field { width: 100%; }
     #add { width: 100%; }
+    .clip-email { flex-direction: column; }
     .options-grid { grid-template-columns: 1fr; }
     .opt-sub-row { flex-direction: column; align-items: stretch; }
     .opt-sub-row select { max-width: 100%; }
@@ -1003,6 +1016,9 @@ const I18N = {
     results_title: "Gegenereerde Clips",
     btn_preview: "Bekijk",
     btn_delete: "Verwijder",
+    email_recipient: "E-mailadres ontvanger",
+    email_placeholder: "naam@voorbeeld.nl",
+    btn_email: "Mail video",
     to: "tot",
     msg_searching: "Video wordt opgezocht...",
     msg_loaded: "Video geladen ({duration}). Selecteer nu de stukken.",
@@ -1015,7 +1031,10 @@ const I18N = {
     err_yt_playback: "YouTube laat deze video hier niet afspelen. Je kunt de tijden zelf typen bij Start en Einde.",
     err_yt_load: "De YouTube-speler kon niet laden. Je kunt de tijden zelf typen bij Start en Einde.",
     err_generic: "Er ging iets mis.",
-    err_logo_upload: "Logo uploaden mislukt."
+    err_logo_upload: "Logo uploaden mislukt.",
+    msg_email_sending: "Video wordt verstuurd...",
+    msg_email_sent_attachment: "Video als bijlage verstuurd naar {recipient}.",
+    msg_email_sent_drive: "Privé-Drive-link verstuurd naar {recipient}."
   },
   en: {
     brand_tag: "Clipper",
@@ -1053,6 +1072,9 @@ const I18N = {
     results_title: "Generated Clips",
     btn_preview: "Preview",
     btn_delete: "Delete",
+    email_recipient: "Recipient email address",
+    email_placeholder: "name@example.com",
+    btn_email: "Email video",
     to: "to",
     msg_searching: "Searching for video...",
     msg_loaded: "Video loaded ({duration}). Select your clips now.",
@@ -1065,7 +1087,10 @@ const I18N = {
     err_yt_playback: "YouTube does not allow playback here. You can manually enter Start and End times.",
     err_yt_load: "The YouTube player could not load. You can manually enter Start and End times.",
     err_generic: "Something went wrong.",
-    err_logo_upload: "Failed to upload logo."
+    err_logo_upload: "Failed to upload logo.",
+    msg_email_sending: "Sending video...",
+    msg_email_sent_attachment: "Video attachment sent to {recipient}.",
+    msg_email_sent_drive: "Private Drive link sent to {recipient}."
   }
 };
 
@@ -1101,6 +1126,11 @@ function setLanguage(lang) {
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     const key = el.dataset.i18nTitle;
     if (I18N[currentLang][key]) el.title = I18N[currentLang][key];
+  });
+
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    const key = el.dataset.i18nAriaLabel;
+    if (I18N[currentLang][key]) el.setAttribute('aria-label', I18N[currentLang][key]);
   });
 
   renderSegments();
@@ -1354,7 +1384,42 @@ $('#render-btn').onclick = async () => {
         srt.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-9 9H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v4zm7 0h-3.5V9H18v1.5h-2v.75h2v1.5h-2v.25h2V13z"/></svg> SRT';
         cap.appendChild(srt);
       }
-      fig.append(v, cap);
+      const emailForm = document.createElement('form');
+      emailForm.className = 'clip-email';
+      const recipient = document.createElement('input');
+      recipient.type = 'email';
+      recipient.required = true;
+      recipient.autocomplete = 'email';
+      recipient.dataset.i18nPlaceholder = 'email_placeholder';
+      recipient.dataset.i18nAriaLabel = 'email_recipient';
+      recipient.placeholder = t('email_placeholder');
+      recipient.setAttribute('aria-label', t('email_recipient'));
+      const send = document.createElement('button');
+      send.type = 'submit';
+      send.dataset.i18n = 'btn_email';
+      send.textContent = t('btn_email');
+      emailForm.append(recipient, send);
+      emailForm.onsubmit = async event => {
+        event.preventDefault();
+        send.disabled = true;
+        setStatus(t('msg_email_sending'));
+        try {
+          const result = await api('/api/send-video', {
+            job,
+            name: c.name,
+            recipient: recipient.value.trim(),
+          });
+          const key = result.delivery === 'drive'
+            ? 'msg_email_sent_drive'
+            : 'msg_email_sent_attachment';
+          setStatus(t(key, { recipient: recipient.value.trim() }));
+        } catch (err) {
+          setStatus(err.message, true);
+        } finally {
+          send.disabled = false;
+        }
+      };
+      fig.append(v, cap, emailForm);
       box.appendChild(fig);
     });
     $('#results').hidden = false;

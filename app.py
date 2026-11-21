@@ -1,4 +1,5 @@
 import json
+import ipaddress
 import os
 import re
 import shutil
@@ -11,6 +12,14 @@ import wave
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from dotenv import load_dotenv
+
+from delivery import (
+    DeliveryConfigurationError,
+    DeliveryError,
+    InvalidRecipient,
+    deliver_clip,
+)
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -19,9 +28,13 @@ else:
     BASE = Path(__file__).parent.resolve()
     APP_DIR = BASE
 
+load_dotenv(BASE / ".env")
+
 bin_dir = BASE / "bin"
 app_bin = APP_DIR / "bin"
-os.environ["PATH"] = f"{bin_dir};{app_bin};{BASE};{APP_DIR};{os.environ.get('PATH', '')}"
+os.environ["PATH"] = os.pathsep.join(
+    str(path) for path in (bin_dir, app_bin, BASE, APP_DIR, os.environ.get("PATH", ""))
+)
 WORK = APP_DIR / "work"          # hier komen de clips en bewerkte bestanden (per job een map)
 WORK.mkdir(exist_ok=True)
 
@@ -374,6 +387,47 @@ def upload_logo():
     return jsonify(ok=True)
 
 
+@app.post("/api/send-video")
+def send_video():
+    if os.environ.get("CLIPAPP_LOCAL_MODE") != "1":
+        return jsonify(error="E-mailen is alleen ingeschakeld in de lokale desktopapp."), 403
+    try:
+        if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
+            return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+    except ValueError:
+        return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+
+    origin = request.headers.get("Origin")
+    if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
+        return jsonify(error="Ongeldige aanvraagbron."), 403
+
+    data = request.get_json(silent=True) or {}
+    job = data.get("job")
+    name = data.get("name")
+    if not isinstance(job, str):
+        return jsonify(error="De videotaak is ongeldig."), 400
+    d = job_dir(job)
+    if not isinstance(name, str) or not re.fullmatch(
+        r"(?:clip_[0-9]{2}|bewerkt_[0-9]{6})\.mp4", name
+    ):
+        return jsonify(error="Ongeldige videonaam."), 400
+    path = d / name
+    if not path.is_file():
+        return jsonify(error="De video is niet gevonden."), 404
+
+    try:
+        result = deliver_clip(path, data.get("recipient"))
+    except InvalidRecipient as exc:
+        return jsonify(error=str(exc)), 400
+    except DeliveryConfigurationError as exc:
+        return jsonify(error=str(exc)), 503
+    except DeliveryError as exc:
+        log(f"E-mail verzenden mislukt: {exc}")
+        return jsonify(error=str(exc)), 502
+
+    return jsonify(ok=True, delivery=result["delivery"])
+
+
 @app.post("/api/render")
 def render():
     """Haal elk gekozen stuk apart op, maak (optioneel) ondertitels en (optioneel) 9:16."""
@@ -602,6 +656,19 @@ def editor_upload():
     except Exception:
         path.unlink(missing_ok=True)
         return jsonify(error="Dit bestand kan ik niet lezen als video of audio."), 400
+    if info["has_audio"]:
+        waveform_path = d / f"wave_{sid}.png"
+        try:
+            run(["ffmpeg", "-y", "-i", str(path), "-filter_complex",
+                 "[0:a:0]aformat=channel_layouts=mono,showwavespic=s=1200x72:"
+                 "colors=0x6ee7b7:scale=sqrt[wave]",
+                 "-map", "[wave]", "-frames:v", "1", str(waveform_path)])
+        except RuntimeError as e:
+            path.unlink(missing_ok=True)
+            waveform_path.unlink(missing_ok=True)
+            log(f"Editor: audiogolfvorm maken mislukt voor {Path(f.filename).name}: {e}")
+            return jsonify(error=f"Kon de audiogolfvorm niet maken: {e}"), 500
+        info["waveform_url"] = f"/media/{job}/{waveform_path.name}"
     info.update(id=sid, name=Path(f.filename).name, file=path.name)
     with _src_lock:
         srcs = load_sources(d)

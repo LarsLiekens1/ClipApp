@@ -132,7 +132,8 @@ flowchart TD
 ## Privacy & Lokale Verwerking
 
 - **100% Lokaal**: Zowel spraakherkenning (`faster-whisper`) als videoverwerking (`ffmpeg`) draaien volledig op je eigen processor / videokaart.
-- **Geen externe cloud uploads**: Er worden geen persoonlijke opnames of video's naar servers van derden verstuurd.
+- **E-mail alleen op verzoek**: Een clip wordt pas naar Gmail/Google Drive gestuurd nadat je bij die clip op **Mail video** klikt. Clips groter dan 17 MiB worden privé gedeeld met alleen het ingevulde e-mailadres; er wordt geen openbare Drive-link aangemaakt.
+- **Lokale desktopfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
 
 ---
 
@@ -140,6 +141,7 @@ flowchart TD
 
 - Python 3.10 of nieuwer
 - [FFmpeg](https://ffmpeg.org/download.html) geïnstalleerd en bereikbaar via je systeem PATH.
+- Ubuntu/Debian: installeer ook de benodigde systeemprogramma's met `sudo apt install python3-venv ffmpeg`.
 
 ---
 
@@ -147,32 +149,33 @@ flowchart TD
 
 1. **Clone de repository**:
    ```bash
-   git clone https://github.com/jouw-gebruikersnaam/clipAPP.git
-   cd clipAPP
+   git clone https://github.com/LarsLiekens1/ClipApp.git
+   cd ClipApp
    ```
 
-2. **Maak een virtuele omgeving aan en activeer deze**:
+2. **Start de app** (de eerste keer kan dit even duren):
    ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # macOS/Linux:
-   source venv/bin/activate
+   # Windows
+   python start.py
+
+   # macOS/Linux
+   python3 start.py
    ```
 
-3. **Installeer de benodigde packages**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+   De starter maakt automatisch een `.venv` aan en installeert de Python-packages uit `requirements.txt`. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
 
-4. **Start de app**:
-   ```bash
-   python app.py
-   ```
-
-5. Open je browser op:
+3. Open je browser op:
    - **Clipper**: `http://127.0.0.1:5050/`
    - **Tijdlijn Editor**: `http://127.0.0.1:5050/editor`
+
+FFmpeg is een apart systeemprogramma en wordt niet automatisch geïnstalleerd. Op Ubuntu/Debian kun je het installeren met `sudo apt install python3-venv ffmpeg`. Als apt meldt dat het vergrendeld is door automatische updates, wacht dan tot die klaar zijn en probeer opnieuw; verwijder het lock-bestand niet.
+
+### Video per e-mail versturen
+
+1. Kopieer `.env.example` naar `.env` in de projectmap.
+2. Vul `SMTP_USER` en `SMTP_FROM` in met je Gmail-adres en `SMTP_PASSWORD` met een Google-app-wachtwoord (zonder spaties). Voor app-wachtwoorden moet tweestapsverificatie aan staan. Bewaar dit bestand privé; het wordt niet naar Git gepusht.
+3. E-mails tot 17 MiB worden als bijlage verstuurd. Voor grotere clips: maak in Google Cloud een OAuth-client van het type **Desktop app**, schakel de **Google Drive API** in en plaats het gedownloade clientbestand in `~/.clipapp/google_oauth_client.json` (Windows: `%USERPROFILE%\.clipapp\google_oauth_client.json`). Voeg je Google-account zo nodig toe als testgebruiker in het OAuth-toestemmingsscherm.
+4. Klik bij een gemaakte clip of video-export in de Tijdlijn Editor op **Mail video** en vul het e-mailadres van de ontvanger in. Bij de eerste grote video opent Google een eenmalige toestemmingspagina. ClipAPP uploadt de video naar jouw Drive, deelt die alleen-lezen met de ontvanger en mailt de link.
 
 ---
 

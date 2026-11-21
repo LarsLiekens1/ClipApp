@@ -218,7 +218,7 @@
     font: inherit;
     outline: none;
   }
-  input[type=text], select {
+  input[type=text], input[type=email], select {
     padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -226,7 +226,7 @@
     color: var(--text-primary);
     transition: all 0.2s ease;
   }
-  input[type=text]:focus, select:focus {
+  input[type=text]:focus, input[type=email]:focus, select:focus {
     border-color: var(--border-focus);
     box-shadow: 0 0 0 3px var(--accent-glow);
     background: rgba(15, 23, 42, 0.95);
@@ -515,6 +515,15 @@
     border: 1px solid #34D399;
     color: #fff;
   }
+  .clip .waveform {
+    position: absolute;
+    left: 14px;
+    bottom: 6px;
+    width: calc(100% - 28px);
+    height: 34px;
+    opacity: 0.9;
+    pointer-events: none;
+  }
   .clip.sel {
     border-color: #FBBF24 !important;
     box-shadow: 0 0 0 2px #F59E0B, 0 6px 20px rgba(245, 158, 11, 0.35);
@@ -772,6 +781,16 @@
     background: var(--accent-hover);
     transform: translateY(-1px);
   }
+  #result .email-form {
+    display: flex;
+    gap: 8px;
+    max-width: 560px;
+    margin-top: 12px;
+  }
+  #result .email-form input {
+    flex: 1;
+    min-width: 0;
+  }
 </style>
 </head>
 <body>
@@ -1008,7 +1027,14 @@ const I18N = {
     err_empty_timeline: "De tijdlijn is leeg.",
     msg_exporting: "Exporteren en encoderen via ffmpeg... Een ogenblik geduld.",
     msg_export_success: "Export succesvol voltooid!",
+    err_waveform_load: "De audiogolfvorm kon niet worden geladen.",
     download_btn: "Download {name}",
+    email_recipient: "E-mailadres ontvanger",
+    email_placeholder: "naam@voorbeeld.nl",
+    btn_email: "Mail video",
+    msg_email_sending: "Video wordt verstuurd...",
+    msg_email_sent_attachment: "Video als bijlage verstuurd naar {recipient}.",
+    msg_email_sent_drive: "Privé-Drive-link verstuurd naar {recipient}.",
     err_generic: "Er ging iets mis."
   },
   en: {
@@ -1067,7 +1093,14 @@ const I18N = {
     err_empty_timeline: "The timeline is empty.",
     msg_exporting: "Exporting and encoding via ffmpeg... Please wait.",
     msg_export_success: "Export completed successfully!",
+    err_waveform_load: "The audio waveform could not be loaded.",
     download_btn: "Download {name}",
+    email_recipient: "Recipient email address",
+    email_placeholder: "name@example.com",
+    btn_email: "Email video",
+    msg_email_sending: "Sending video...",
+    msg_email_sent_attachment: "Video attachment sent to {recipient}.",
+    msg_email_sent_drive: "Private Drive link sent to {recipient}.",
     err_generic: "Something went wrong."
   }
 };
@@ -1101,6 +1134,16 @@ function setLanguage(lang) {
     if (I18N[currentLang][key]) el.title = I18N[currentLang][key];
   });
 
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (I18N[currentLang][key]) el.placeholder = I18N[currentLang][key];
+  });
+
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    const key = el.dataset.i18nAriaLabel;
+    if (I18N[currentLang][key]) el.setAttribute('aria-label', I18N[currentLang][key]);
+  });
+
   syncPlayBtn();
   renderBin();
 }
@@ -1118,6 +1161,7 @@ let watermarkY = 0.75;
 let watermarkDrag = null;
 const watermarkPreviewImage = new Image();
 const sources = {};
+const waveformImages = {};
 let clips = [];
 let sel = -1;
 let pps = 40;
@@ -1269,6 +1313,25 @@ function renderBin() {
   });
 }
 
+function drawWaveform(canvas, source, clip) {
+  let image = waveformImages[source.waveform_url];
+  if (!image) {
+    image = new Image();
+    waveformImages[source.waveform_url] = image;
+    image.onload = () => renderTimeline();
+    image.onerror = () => setStatus(t('err_waveform_load'), true);
+    image.src = source.waveform_url;
+    return;
+  }
+  if (!image.complete || !image.naturalWidth) return;
+  const start = clip.start / source.duration * image.naturalWidth;
+  const end = clip.end / source.duration * image.naturalWidth;
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, start, 0, Math.max(1, end - start), image.naturalHeight,
+                    0, 0, canvas.width, canvas.height);
+}
+
 function renderTimeline() {
   const track = $('#track');
   const width = Math.max(total() * pps + 240, $('#tl-scroll').clientWidth);
@@ -1286,6 +1349,14 @@ function renderTimeline() {
     const small = document.createElement('small');
     small.textContent = fmt(dur(c));
     label.appendChild(small);
+    if (s.waveform_url && dur(c) * pps >= 36) {
+      const waveform = document.createElement('canvas');
+      waveform.className = 'waveform';
+      waveform.width = 300;
+      waveform.height = 40;
+      b.appendChild(waveform);
+      drawWaveform(waveform, s, c);
+    }
     const hl = document.createElement('div'); hl.className = 'handle l'; hl.dataset.side = 'l';
     const hr = document.createElement('div'); hr.className = 'handle r'; hr.dataset.side = 'r';
     b.append(hl, label, hr);
@@ -1718,6 +1789,44 @@ $('#export-btn').onclick = async () => {
     a.href = data.url; a.download = data.name;
     a.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ${t('download_btn', { name: data.name })}`;
     box.append(media, a);
+    if (data.kind === 'video') {
+      const emailForm = document.createElement('form');
+      emailForm.className = 'email-form';
+      const recipient = document.createElement('input');
+      recipient.type = 'email';
+      recipient.required = true;
+      recipient.autocomplete = 'email';
+      recipient.dataset.i18nPlaceholder = 'email_placeholder';
+      recipient.dataset.i18nAriaLabel = 'email_recipient';
+      recipient.placeholder = t('email_placeholder');
+      recipient.setAttribute('aria-label', t('email_recipient'));
+      const send = document.createElement('button');
+      send.type = 'submit';
+      send.dataset.i18n = 'btn_email';
+      send.textContent = t('btn_email');
+      emailForm.append(recipient, send);
+      emailForm.onsubmit = async event => {
+        event.preventDefault();
+        send.disabled = true;
+        setStatus(t('msg_email_sending'));
+        try {
+          const result = await api('/api/send-video', {
+            job,
+            name: data.name,
+            recipient: recipient.value.trim(),
+          });
+          const key = result.delivery === 'drive'
+            ? 'msg_email_sent_drive'
+            : 'msg_email_sent_attachment';
+          setStatus(t(key, { recipient: recipient.value.trim() }));
+        } catch (err) {
+          setStatus(err.message, true);
+        } finally {
+          send.disabled = false;
+        }
+      };
+      box.append(emailForm);
+    }
     box.hidden = false;
     setStatus(t('msg_export_success'));
   } catch (err) {
