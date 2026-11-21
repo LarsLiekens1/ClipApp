@@ -1,4 +1,5 @@
 import json
+import ipaddress
 import os
 import re
 import shutil
@@ -11,6 +12,14 @@ import wave
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from dotenv import load_dotenv
+
+from delivery import (
+    DeliveryConfigurationError,
+    DeliveryError,
+    InvalidRecipient,
+    deliver_clip,
+)
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -18,6 +27,8 @@ if getattr(sys, "frozen", False):
 else:
     BASE = Path(__file__).parent.resolve()
     APP_DIR = BASE
+
+load_dotenv(BASE / ".env")
 
 bin_dir = BASE / "bin"
 app_bin = APP_DIR / "bin"
@@ -374,6 +385,47 @@ def upload_logo():
         path.unlink(missing_ok=True)
         return jsonify(error="Dit bestand is geen geldige afbeelding."), 400
     return jsonify(ok=True)
+
+
+@app.post("/api/send-video")
+def send_video():
+    if os.environ.get("CLIPAPP_LOCAL_MODE") != "1":
+        return jsonify(error="E-mailen is alleen ingeschakeld in de lokale desktopapp."), 403
+    try:
+        if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
+            return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+    except ValueError:
+        return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+
+    origin = request.headers.get("Origin")
+    if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
+        return jsonify(error="Ongeldige aanvraagbron."), 403
+
+    data = request.get_json(silent=True) or {}
+    job = data.get("job")
+    name = data.get("name")
+    if not isinstance(job, str):
+        return jsonify(error="De videotaak is ongeldig."), 400
+    d = job_dir(job)
+    if not isinstance(name, str) or not re.fullmatch(
+        r"(?:clip_[0-9]{2}|bewerkt_[0-9]{6})\.mp4", name
+    ):
+        return jsonify(error="Ongeldige videonaam."), 400
+    path = d / name
+    if not path.is_file():
+        return jsonify(error="De video is niet gevonden."), 404
+
+    try:
+        result = deliver_clip(path, data.get("recipient"))
+    except InvalidRecipient as exc:
+        return jsonify(error=str(exc)), 400
+    except DeliveryConfigurationError as exc:
+        return jsonify(error=str(exc)), 503
+    except DeliveryError as exc:
+        log(f"E-mail verzenden mislukt: {exc}")
+        return jsonify(error=str(exc)), 502
+
+    return jsonify(ok=True, delivery=result["delivery"])
 
 
 @app.post("/api/render")

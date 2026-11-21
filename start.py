@@ -42,6 +42,8 @@ def prepare_environment():
 
 prepare_environment()
 
+os.environ["CLIPAPP_LOCAL_MODE"] = "1"
+
 from app import app
 
 
