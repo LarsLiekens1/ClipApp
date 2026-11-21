@@ -68,16 +68,13 @@ def print_startup_banner(port):
         ctypes.windll.kernel32.SetConsoleTitleW(title)
 
     url = f"http://127.0.0.1:{port}"
-    logo = r"""
-   ____ _ _       _    ___  ___
-  / ___| (_)_ __ | |  / _ \| _ \
- | |   | | | '_ \| | | | | |  _/
- | |___| | | |_) | |_| |_| | |
-  \____|_|_| .__/ \___/___/|_|
-           |_|
-"""
-    print(f"{Fore.CYAN}{logo}{Style.RESET_ALL}")
-    print(f"  {Fore.MAGENTA}CLIPAPP // LOCAL VIDEO STUDIO{Style.RESET_ALL}")
+    logo = (
+        "   +---------------------------------------+\n"
+        "   |          [>]  CLIPAPP                 |\n"
+        "   +---------------------------------------+\n"
+    )
+    print(f"{Fore.CYAN}{Style.BRIGHT}{logo}{Style.RESET_ALL}")
+    print(f"  {Fore.MAGENTA}LOCAL VIDEO STUDIO{Style.RESET_ALL}")
     print(f"  {Fore.GREEN}[SERVER]  {url}{Style.RESET_ALL}")
     print(f"  {Fore.YELLOW}[CLIPPER] {url}/{Style.RESET_ALL}")
     print(f"  {Fore.YELLOW}[EDITOR]  {url}/editor{Style.RESET_ALL}")
