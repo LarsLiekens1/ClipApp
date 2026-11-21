@@ -13,6 +13,7 @@ Dit project (**ClipAPP**) maakt gebruik van open-source bibliotheken en externe 
 | **faster-whisper** | Lokale AI spraakherkenning | MIT License | [SYSTRAN](https://github.com/SYSTRAN/faster-whisper) |
 | **CTranslate2** | Fast inference engine voor Whisper | MIT License | [OpenNMT](https://github.com/OpenNMT/CTranslate2) |
 | **NumPy** | Audio buffer verwerking | BSD 3-Clause License | [NumPy Developers](https://numpy.org/) |
+| **Colorama** | Kleurondersteuning voor terminaloutput op Windows en Unix | BSD 3-Clause License | [Colorama](https://github.com/tartley/colorama) |
 | **Google API Python Client** | Upload van grote clips naar Google Drive | Apache 2.0 License | [Google APIs](https://github.com/googleapis/google-api-python-client) |
 | **google-auth-oauthlib** | OAuth-toestemming voor Google Drive | Apache 2.0 License | [google-auth-library-python-oauthlib](https://github.com/googleapis/google-auth-library-python-oauthlib) |
 | **google-auth-httplib2** | Geauthenticeerde HTTP-transportlaag voor Google API's | Apache 2.0 License | [google-auth-library-python-httplib2](https://github.com/googleapis/google-auth-library-python-httplib2) |

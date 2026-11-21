@@ -12,6 +12,7 @@ import wave
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from colorama import Fore, Style
 from dotenv import load_dotenv
 
 from delivery import (
@@ -65,7 +66,8 @@ def run(cmd, cwd=None):
                        env={**os.environ, "PYTHONUTF8": "1"})
     if p.returncode != 0:
         # volledige fout in de terminal, zodat je kunt zien wat er precies misging
-        print(f"\n[FOUT] {' '.join(str(c) for c in cmd[:8])} ...\n{p.stderr}", file=sys.stderr, flush=True)
+        print(f"\n{Fore.RED}[FOUT] {' '.join(str(c) for c in cmd[:8])} ...\n"
+              f"{p.stderr}{Style.RESET_ALL}", file=sys.stderr, flush=True)
         tail = "\n".join(p.stderr.strip().splitlines()[-5:]) or "commando mislukt"
         raise RuntimeError(tail)
     return p.stdout
@@ -79,7 +81,18 @@ _bar_open = False
 def log(msg):
     """Regel met de tijd ervoor, zodat je in de terminal ziet wat er wanneer gebeurde."""
     end_bar()
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+    color = Fore.CYAN
+    if "MISLUKT" in msg or "[FOUT]" in msg:
+        color = Fore.RED
+    elif "ALLES KLAAR" in msg:
+        color = Fore.GREEN
+    elif msg.startswith("Stap"):
+        color = Fore.MAGENTA
+    print(
+        f"{Fore.LIGHTBLACK_EX}[{time.strftime('%H:%M:%S')}]{Style.RESET_ALL} "
+        f"{color}{msg}{Style.RESET_ALL}",
+        flush=True,
+    )
 
 
 def show_bar(frac):
@@ -87,7 +100,12 @@ def show_bar(frac):
     global _bar_open
     frac = max(0.0, min(1.0, frac))
     n = int(frac * 20)
-    print(f"\r           [{'#' * n}{'-' * (20 - n)}] {int(frac * 100):3d}%", end="", flush=True)
+    print(
+        f"\r           {Fore.CYAN}{'#' * n}{Fore.LIGHTBLACK_EX}{'-' * (20 - n)}"
+        f"{Style.RESET_ALL} {Fore.YELLOW}{int(frac * 100):3d}%{Style.RESET_ALL}",
+        end="",
+        flush=True,
+    )
     _bar_open = True
 
 
@@ -130,7 +148,12 @@ def run_ffmpeg(cmd, length, cwd=None):
     p.wait()
     if p.returncode != 0:
         end_bar()
-        print("\n[FOUT] ffmpeg ...\n" + "\n".join(errors), file=sys.stderr, flush=True)
+        error_text = "\n".join(errors)
+        print(
+            f"\n{Fore.RED}[FOUT] ffmpeg ...\n{error_text}{Style.RESET_ALL}",
+            file=sys.stderr,
+            flush=True,
+        )
         raise RuntimeError("\n".join(errors[-5:]) or "ffmpeg mislukt")
     show_bar(1.0)
 
