@@ -133,7 +133,7 @@ flowchart TD
 
 - **100% Lokaal**: Zowel spraakherkenning (`faster-whisper`) als videoverwerking (`ffmpeg`) draaien volledig op je eigen processor / videokaart.
 - **E-mail alleen op verzoek**: Een clip wordt pas naar Gmail/Google Drive gestuurd nadat je bij die clip op **Mail video** klikt. Clips groter dan 17 MiB worden privé gedeeld met alleen het ingevulde e-mailadres; er wordt geen openbare Drive-link aangemaakt.
-- **Lokale desktopfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
+- **Lokale terminalfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
 
 ---
 
@@ -153,7 +153,7 @@ flowchart TD
    cd ClipApp
    ```
 
-2. **Start de app** (de eerste keer kan dit even duren):
+2. **Start de lokale server** vanuit de terminal (de eerste keer kan dit even duren):
    ```bash
    # Windows
    python start.py
@@ -162,7 +162,7 @@ flowchart TD
    python3 start.py
    ```
 
-   De starter maakt automatisch een `.venv` aan en installeert de Python-packages uit `requirements.txt`. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
+   De starter maakt automatisch een `.venv` aan, installeert de Python-packages uit `requirements.txt` en opent de localhost-pagina in je gewone browser. ClipAPP draait alleen in de terminal en je browser; er is geen ingebouwd desktopvenster. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
 
 3. Open je browser op:
    - **Clipper**: `http://127.0.0.1:5050/`

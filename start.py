@@ -42,6 +42,9 @@ def prepare_environment():
 
 prepare_environment()
 
+from colorama import Fore, Style, just_fix_windows_console
+
+just_fix_windows_console()
 os.environ["CLIPAPP_LOCAL_MODE"] = "1"
 
 from app import app
@@ -50,7 +53,8 @@ from app import app
 missing_tools = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
 if missing_tools:
     print(
-        "FFmpeg ontbreekt. Installeer FFmpeg (inclusief ffprobe) en voeg het toe aan PATH. "
+        f"{Fore.RED}[ERROR] FFmpeg ontbreekt. Installeer FFmpeg (inclusief ffprobe) "
+        f"en voeg het toe aan PATH.{Style.RESET_ALL} "
         f"Niet gevonden: {', '.join(missing_tools)}",
         file=sys.stderr,
     )
@@ -62,44 +66,40 @@ URL = f"http://127.0.0.1:{PORT}"
 def run_server():
     app.run(host="127.0.0.1", port=PORT, threaded=True)
 
-def main():
-    print("=" * 50)
-    print("  ClipAPP Desktop App wordt gestart...")
-    print(f"  URL: {URL}")
-    print("=" * 50)
 
-    # Kijk of pywebview geinstalleerd is voor een echt app-venster
-    has_webview = False
-    if sys.platform != "linux":
-        try:
-            import webview
-            has_webview = True
-        except ImportError:
-            pass
+def print_banner():
+    logo = r"""
+   ____ _ _       _    ___  ___
+  / ___| (_)_ __ | |  / _ \| _ \
+ | |   | | | '_ \| | | | | |  _/
+ | |___| | | |_) | |_| |_| | |
+  \____|_|_| .__/ \___/___/|_|
+           |_|
+"""
+    print(f"{Fore.CYAN}{logo}{Style.RESET_ALL}")
+    print(f"  {Fore.MAGENTA}LOCAL VIDEO WORKSPACE{Style.RESET_ALL}")
+    print(f"  {Fore.GREEN}[SERVER]  http://127.0.0.1:{PORT}{Style.RESET_ALL}")
+    print(f"  {Fore.YELLOW}[CLIPPER] {URL}/{Style.RESET_ALL}")
+    print(f"  {Fore.YELLOW}[EDITOR]  {URL}/editor{Style.RESET_ALL}")
+    print(f"  {Fore.LIGHTBLACK_EX}{'-' * 52}{Style.RESET_ALL}")
+    print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
 
-    if has_webview:
-        # Start de Flask backend op de achtergrond
-        server_thread = threading.Thread(target=run_server, daemon=True)
-        server_thread.start()
-        time.sleep(1.0)
-        # Toon native desktop venster
-        import webview
-        webview.create_window(
-            title="ClipAPP",
-            url=URL,
-            width=1280,
-            height=820,
-            min_size=(960, 640)
-        )
-        webview.start()
+
+def open_browser():
+    time.sleep(1.2)
+    if webbrowser.open(URL):
+        print(f"{Fore.GREEN}[OPEN] Browser geopend op {URL}{Style.RESET_ALL}", flush=True)
     else:
-        # Fallback: open automatisch je standaard webbrowser
-        def open_browser():
-            time.sleep(1.2)
-            webbrowser.open(URL)
+        print(f"{Fore.YELLOW}[OPEN] Open deze URL in je browser: {URL}{Style.RESET_ALL}", flush=True)
 
-        threading.Thread(target=open_browser, daemon=True).start()
+
+def main():
+    print_banner()
+    threading.Thread(target=open_browser, daemon=True).start()
+    try:
         run_server()
+    except KeyboardInterrupt:
+        print(f"\n{Fore.CYAN}[STOP] ClipAPP is netjes afgesloten.{Style.RESET_ALL}", flush=True)
 
 if __name__ == "__main__":
     main()
