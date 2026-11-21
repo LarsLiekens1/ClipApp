@@ -132,8 +132,7 @@ flowchart TD
 ## Privacy & Lokale Verwerking
 
 - **100% Lokaal**: Zowel spraakherkenning (`faster-whisper`) als videoverwerking (`ffmpeg`) draaien volledig op je eigen processor / videokaart.
-- **E-mail alleen op verzoek**: Een clip wordt pas naar Gmail/Google Drive gestuurd nadat je bij die clip op **Mail video** klikt. Clips groter dan 17 MiB worden privé gedeeld met alleen het ingevulde e-mailadres; er wordt geen openbare Drive-link aangemaakt.
-- **Lokale terminalfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
+- **Lokale terminalfunctie**: `start.py` bindt alleen aan je eigen computer; de publieke Docker/Hugging Face-server gebruikt een aparte startmethode.
 
 ---
 
@@ -171,15 +170,6 @@ flowchart TD
    - **Tijdlijn Editor**: `http://127.0.0.1:5050/editor`
 
 FFmpeg is een apart systeemprogramma en wordt niet automatisch geïnstalleerd. Op Ubuntu/Debian kun je het installeren met `sudo apt install python3-venv ffmpeg`. Als apt meldt dat het vergrendeld is door automatische updates, wacht dan tot die klaar zijn en probeer opnieuw; verwijder het lock-bestand niet.
-
-### Video per e-mail versturen
-
-1. Kopieer `.env.example` naar `.env` in de projectmap (of naast `ClipAPP.exe`) en stel `GMAIL_FROM` in op het Gmail-adres dat je met OAuth gaat autoriseren. Maak in Google Cloud een project, schakel de **Gmail API** in en configureer het OAuth-toestemmingsscherm. Voeg je Google-account toe als testgebruiker zolang de app in de testmodus staat.
-2. Maak een OAuth-client van het type **Desktop app**, download het JSON-bestand en plaats het als `%USERPROFILE%\.clipapp\google_oauth_client.json` (macOS/Linux: `~/.clipapp/google_oauth_client.json`). Optioneel kun je een ander pad instellen met `GOOGLE_OAUTH_CLIENT_FILE` in `.env` in de projectmap (of naast `ClipAPP.exe`).
-3. Klik in de Tijdlijn Editor bij een clip of video-export op **Mail video** en vul het e-mailadres van de ontvanger in. De eerste keer opent Google een toestemmingspagina; ClipAPP vraagt alleen toestemming om Gmail-berichten te versturen. Het toegangstoken wordt lokaal in `%USERPROFILE%\.clipapp\google_gmail_token.json` bewaard. Een Google-app-wachtwoord is niet nodig.
-4. Video's tot 17 MiB worden als e-mailbijlage verstuurd. Voor grotere video's schakelt ClipAPP ook Google Drive in: schakel dan de **Google Drive API** in en geef bij de eerste grote video apart toestemming. De video wordt alleen-lezen gedeeld met het opgegeven e-mailadres.
-
----
 
 ## Disclaimer & Fair Use
 

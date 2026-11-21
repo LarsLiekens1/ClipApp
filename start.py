@@ -45,7 +45,6 @@ prepare_environment()
 from colorama import Fore, Style, just_fix_windows_console
 
 just_fix_windows_console()
-os.environ["CLIPAPP_LOCAL_MODE"] = "1"
 
 from app import app
 

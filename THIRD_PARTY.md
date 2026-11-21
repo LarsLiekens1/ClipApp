@@ -14,10 +14,7 @@ Dit project (**ClipAPP**) maakt gebruik van open-source bibliotheken en externe 
 | **CTranslate2** | Fast inference engine voor Whisper | MIT License | [OpenNMT](https://github.com/OpenNMT/CTranslate2) |
 | **NumPy** | Audio buffer verwerking | BSD 3-Clause License | [NumPy Developers](https://numpy.org/) |
 | **Colorama** | Kleurondersteuning voor terminaloutput op Windows en Unix | BSD 3-Clause License | [Colorama](https://github.com/tartley/colorama) |
-| **Google API Python Client** | Upload van grote clips naar Google Drive | Apache 2.0 License | [Google APIs](https://github.com/googleapis/google-api-python-client) |
-| **google-auth-oauthlib** | OAuth-toestemming voor Google Drive | Apache 2.0 License | [google-auth-library-python-oauthlib](https://github.com/googleapis/google-auth-library-python-oauthlib) |
-| **google-auth-httplib2** | Geauthenticeerde HTTP-transportlaag voor Google API's | Apache 2.0 License | [google-auth-library-python-httplib2](https://github.com/googleapis/google-auth-library-python-httplib2) |
-| **python-dotenv** | Lezen van lokale e-mailinstellingen uit `.env` | BSD 3-Clause License | [python-dotenv](https://github.com/theskumar/python-dotenv) |
+| **python-dotenv** | Lezen van lokale configuratie uit `.env` | BSD 3-Clause License | [python-dotenv](https://github.com/theskumar/python-dotenv) |
 
 ---
 
@@ -47,5 +44,5 @@ Dit project (**ClipAPP**) maakt gebruik van open-source bibliotheken en externe 
 ## 5. Veiligheids- & Privacyrichtlijnen van deze Repository
 
 1. **Geen persoonlijke of auteursrechtelijk beschermde media**: De `work/` map, geüploade logo's en gedownloade videoclips zijn opgenomen in `.gitignore` en worden nooit gecommit.
-2. **Geen geheimen in Git**: `.env`-bestanden, OAuth-clientbestanden en authenticatietokens worden niet gecommit. Google Drive OAuth-tokens worden lokaal buiten de repository opgeslagen.
-3. **Lokale verwerking**: Audio- en videoverwerking vindt lokaal plaats. Alleen wanneer de gebruiker expliciet een clip mailt, wordt die clip naar Gmail verzonden of (bij grote bestanden) naar de eigen Google Drive geüpload en privé met de ontvanger gedeeld.
+2. **Geen geheimen in Git**: `.env`-bestanden en lokale configuratie worden niet gecommit.
+3. **Lokale verwerking**: Audio- en videoverwerking vindt lokaal plaats; bestanden en exports blijven in de lokale werkmap.
