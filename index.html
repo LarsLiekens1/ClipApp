@@ -324,6 +324,82 @@
     border-color: rgba(239, 68, 68, 0.25);
   }
 
+  .analysis-box {
+    margin: 0 0 24px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+  }
+  .analysis-box h2 {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+  }
+  .analysis-box > p {
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+  }
+  .analysis-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 18px 0;
+  }
+  .analysis-stat {
+    flex: 1 1 180px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+  }
+  .analysis-stat span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+  .analysis-stat strong {
+    display: block;
+    margin-top: 2px;
+    font-size: 1.25rem;
+  }
+  #comment-analysis-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  #comment-analysis-chart text {
+    fill: var(--text-secondary);
+    font: 12px var(--font-sans);
+  }
+  .analysis-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+  .analysis-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .analysis-legend i {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+  .analysis-legend .mentions-key { background: #818cf8; }
+  .analysis-legend .viewers-key { background: #34d399; }
+  #comment-analysis-status {
+    margin: 12px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+  }
+
   /* Video Stage */
   .player-container {
     background: #000;
@@ -864,6 +940,30 @@
   <p id="status" role="status" aria-live="polite"></p>
 
   <section id="editor" hidden>
+    <div class="analysis-box" id="comment-analysis-panel" hidden>
+      <h2 data-i18n="analysis_title">Commenttijdstempels & kijkersmomenten</h2>
+      <p data-i18n="analysis_desc">Vergelijk tijdstempels die in YouTube-comments worden genoemd met de beschikbare kijkersheatmap.</p>
+      <button type="button" class="primary" id="analyze-comments-btn" data-i18n="analysis_button">Analyseer comments</button>
+      <p id="comment-analysis-status" role="status" aria-live="polite"></p>
+      <div id="comment-analysis-results" hidden>
+        <div class="analysis-stats">
+          <div class="analysis-stat">
+            <span data-i18n="analysis_mentions_label">Tijdstempelvermeldingen</span>
+            <strong id="analysis-mentions-value">0</strong>
+          </div>
+          <div class="analysis-stat">
+            <span data-i18n="analysis_comments_label">Geanalyseerde comments</span>
+            <strong id="analysis-comments-value">0</strong>
+          </div>
+        </div>
+        <svg id="comment-analysis-chart" viewBox="0 0 960 320" role="img"></svg>
+        <div class="analysis-legend">
+          <span><i class="mentions-key"></i><span data-i18n="analysis_legend_mentions">Tijdstempels in comments</span></span>
+          <span><i class="viewers-key"></i><span data-i18n="analysis_legend_viewers">Kijkersheatmap (relatief)</span></span>
+        </div>
+      </div>
+    </div>
+
     <div class="player-container">
       <video id="player" controls hidden></video>
       <div id="yt-wrap" hidden></div>
@@ -976,6 +1076,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let job = null, duration = 0, segments = [];
+let analysisData = null;
 const player = $('#player');
 let yt = null;
 
@@ -1020,6 +1121,18 @@ const I18N = {
     email_placeholder: "naam@voorbeeld.nl",
     btn_email: "Mail video",
     to: "tot",
+    analysis_title: "Commenttijdstempels & kijkersmomenten",
+    analysis_desc: "Vergelijk tijdstempels uit maximaal 1.000 YouTube-comments met de beschikbare kijkersheatmap.",
+    analysis_button: "Analyseer comments",
+    analysis_loading: "YouTube-comments en kijkersheatmap ophalen...",
+    analysis_mentions_label: "Tijdstempelvermeldingen",
+    analysis_comments_label: "Geanalyseerde comments",
+    analysis_legend_mentions: "Tijdstempels in comments",
+    analysis_legend_viewers: "Kijkersheatmap (relatief)",
+    analysis_no_timestamps: "Er zijn geen tijdstempels in de opgehaalde comments gevonden.",
+    analysis_no_heatmap: "YouTube heeft voor deze video geen kijkersheatmap beschikbaar.",
+    analysis_peaks: "Meeste genoemde tijdstempels: {comments}. Meeste kijkersinteresse: {viewers}.",
+    analysis_chart_label: "Grafiek van genoemde tijdstempels en relatieve kijkersinteresse per videomoment.",
     msg_searching: "Video wordt opgezocht...",
     msg_loaded: "Video geladen ({duration}). Selecteer nu de stukken.",
     msg_processing_subs: "Clips worden verwerkt en ondertiteld via Whisper. Een ogenblik...",
@@ -1076,6 +1189,18 @@ const I18N = {
     email_placeholder: "name@example.com",
     btn_email: "Email video",
     to: "to",
+    analysis_title: "Comment timestamps & viewer activity",
+    analysis_desc: "Compare timestamps from up to 1,000 YouTube comments with the available viewer heatmap.",
+    analysis_button: "Analyze comments",
+    analysis_loading: "Fetching YouTube comments and viewer heatmap...",
+    analysis_mentions_label: "Timestamp mentions",
+    analysis_comments_label: "Comments analyzed",
+    analysis_legend_mentions: "Timestamps in comments",
+    analysis_legend_viewers: "Viewer heatmap (relative)",
+    analysis_no_timestamps: "No timestamps were found in the retrieved comments.",
+    analysis_no_heatmap: "YouTube does not provide a viewer heatmap for this video.",
+    analysis_peaks: "Most-mentioned timestamps: {comments}. Highest viewer interest: {viewers}.",
+    analysis_chart_label: "Chart of mentioned timestamps and relative viewer interest across the video.",
     msg_searching: "Searching for video...",
     msg_loaded: "Video loaded ({duration}). Select your clips now.",
     msg_processing_subs: "Processing clips and generating subtitles with Whisper. Please wait...",
@@ -1134,6 +1259,7 @@ function setLanguage(lang) {
   });
 
   renderSegments();
+  if (analysisData) renderAnalysis(analysisData);
 }
 
 document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -1181,6 +1307,115 @@ function fmt(t) {
   const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
   const sec = s.toFixed(1).padStart(4, '0');
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+function fmtChartTime(seconds) {
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function renderAnalysis(data) {
+  analysisData = data;
+  const results = $('#comment-analysis-results');
+  const chart = $('#comment-analysis-chart');
+  const status = $('#comment-analysis-status');
+  $('#analysis-mentions-value').textContent = data.timestamp_mentions.toLocaleString(currentLang);
+  $('#analysis-comments-value').textContent = data.comment_count.toLocaleString(currentLang);
+  chart.replaceChildren();
+
+  const bins = data.bins || [];
+  const hasMentions = bins.some(bin => bin.comment_mentions > 0);
+  const viewerBins = bins.filter(bin => Number.isFinite(bin.viewer_score));
+  const maxMentions = Math.max(1, ...bins.map(bin => bin.comment_mentions));
+  const maxViewers = viewerBins.length
+    ? Math.max(...viewerBins.map(bin => bin.viewer_score))
+    : 0;
+  results.hidden = bins.length === 0;
+  const messages = [
+    hasMentions ? '' : t('analysis_no_timestamps'),
+    viewerBins.length ? '' : t('analysis_no_heatmap'),
+  ].filter(Boolean);
+  const commentPeak = bins.reduce(
+    (best, bin) => bin.comment_mentions > (best ? best.comment_mentions : 0) ? bin : best,
+    null
+  );
+  const viewerPeak = viewerBins.reduce(
+    (best, bin) => bin.viewer_score > (best ? best.viewer_score : -Infinity) ? bin : best,
+    null
+  );
+  if (commentPeak && viewerPeak) {
+    messages.push(t('analysis_peaks', {
+      comments: `${fmtChartTime(commentPeak.start)}–${fmtChartTime(commentPeak.end)}`,
+      viewers: `${fmtChartTime(viewerPeak.start)}–${fmtChartTime(viewerPeak.end)}`,
+    }));
+  }
+  status.textContent = messages.join(' ');
+  if (!bins.length) return;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const add = (name, attrs, text) => {
+    const node = document.createElementNS(ns, name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+    if (text !== undefined) node.textContent = text;
+    chart.appendChild(node);
+    return node;
+  };
+  const left = 64, right = 892, top = 24, bottom = 258;
+  const width = right - left, height = bottom - top;
+  const x = seconds => left + (seconds / data.duration) * width;
+  const yViewers = value => bottom - (value / maxViewers) * height;
+  chart.setAttribute('aria-label', t('analysis_chart_label'));
+
+  for (let tick = 0; tick <= 4; tick++) {
+    const fraction = tick / 4;
+    const rowY = bottom - fraction * height;
+    const count = Math.round(maxMentions * fraction);
+    add('line', { x1: left, y1: rowY, x2: right, y2: rowY, stroke: 'rgba(255,255,255,0.12)' });
+    add('text', { x: left - 10, y: rowY + 4, 'text-anchor': 'end' }, String(count));
+    add('text', { x: right + 10, y: rowY + 4 }, `${Math.round(fraction * 100)}%`);
+  }
+
+  bins.forEach(bin => {
+    const barHeight = (bin.comment_mentions / maxMentions) * height;
+    if (barHeight <= 0) return;
+    const bar = add('rect', {
+      x: x(bin.start) + 1,
+      y: bottom - barHeight,
+      width: Math.max(1, x(bin.end) - x(bin.start) - 2),
+      height: barHeight,
+      fill: '#818cf8',
+      rx: 2,
+    });
+    const title = document.createElementNS(ns, 'title');
+    title.textContent = `${fmtChartTime(bin.start)}–${fmtChartTime(bin.end)}: ${bin.comment_mentions}`;
+    bar.appendChild(title);
+  });
+
+  if (maxViewers > 0) {
+    const points = viewerBins.map(bin => `${x((bin.start + bin.end) / 2)},${yViewers(bin.viewer_score)}`);
+    if (points.length) {
+      add('path', {
+        d: `M ${points.join(' L ')}`,
+        fill: 'none',
+        stroke: '#34d399',
+        'stroke-width': 3,
+        'stroke-linejoin': 'round',
+        'stroke-linecap': 'round',
+      });
+    }
+  }
+
+  for (let tick = 0; tick <= 4; tick++) {
+    const tickTime = data.duration * tick / 4;
+    add('text', { x: x(tickTime), y: bottom + 24, 'text-anchor': 'middle' }, fmtChartTime(tickTime));
+  }
+  add('text', { x: left, y: 310 }, currentLang === 'nl' ? 'Aantal vermeldingen' : 'Timestamp mentions');
+  add('text', { x: right, y: 310, 'text-anchor': 'end' }, currentLang === 'nl' ? 'Relatieve kijkersinteresse' : 'Relative viewer interest');
 }
 
 function parse(str) {
@@ -1317,6 +1552,10 @@ $('#load-form').addEventListener('submit', async e => {
   try {
     const data = await api('/api/load', { url: $('#url').value });
     job = data.job; duration = data.duration; segments = [];
+    analysisData = null;
+    $('#comment-analysis-results').hidden = true;
+    $('#comment-analysis-status').textContent = '';
+    $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
     player.pause();
     $('#editor').hidden = false;
     $('#results').hidden = true;
@@ -1338,6 +1577,22 @@ $('#load-form').addEventListener('submit', async e => {
     $('#load-btn').disabled = false;
   }
 });
+
+$('#analyze-comments-btn').onclick = async () => {
+  const btn = $('#analyze-comments-btn');
+  btn.disabled = true;
+  analysisData = null;
+  $('#comment-analysis-status').textContent = t('analysis_loading');
+  $('#comment-analysis-results').hidden = true;
+  try {
+    const data = await api('/api/analyze-comments', { url: $('#url').value });
+    renderAnalysis(data);
+  } catch (err) {
+    $('#comment-analysis-status').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 // --- clips maken ---
 $('#render-btn').onclick = async () => {
