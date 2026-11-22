@@ -1029,7 +1029,7 @@
   <section id="editor" hidden>
     <div class="analysis-box auto-box" id="auto-panel">
       <h2 data-i18n="auto_title">✨ Automatisch TikToks maken</h2>
-      <p data-i18n="auto_desc">De AI leest het transcript van de hele video, kiest de sterkste momenten en schrijft per clip een hook-caption en posttekst met hashtags.</p>
+      <p data-i18n="auto_desc">Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.</p>
       <div class="analysis-suggestion-controls">
         <label for="auto-count">
           <span data-i18n="analysis_suggestion_count">Aantal clips</span>
@@ -1228,8 +1228,8 @@
             <label class="opt-main-toggle" for="caption-toggle">
               <input type="checkbox" id="caption-toggle">
               <div class="opt-toggle-content">
-                <span class="opt-toggle-title" data-i18n="caption_title">Caption bovenin (AI of comments)</span>
-                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruikt de AI-caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
+                <span class="opt-toggle-title" data-i18n="caption_title">Caption bovenin (automatisch of comments)</span>
+                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruikt de automatische caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
               </div>
             </label>
             <div class="opt-sub-row disabled" id="caption-position-row">
@@ -1299,8 +1299,8 @@ const I18N = {
     vert_desc: "Ideaal voor TikTok, Shorts & Reels",
     vert_blur: "Geblurde achtergrond (i.p.v. zwarte balken)",
     vert_logo: "Logo onder de ondertitels:",
-    caption_title: "Caption bovenin (AI of comments)",
-    caption_desc: "Gebruikt de AI-caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.",
+    caption_title: "Caption bovenin (automatisch of comments)",
+    caption_desc: "Gebruikt de automatische caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.",
     caption_position: "Positie caption:",
     caption_above: "Boven de video (bovenste balk)",
     caption_top: "Bovenin de video",
@@ -1359,13 +1359,13 @@ const I18N = {
     err_generic: "Er ging iets mis.",
     err_logo_upload: "Logo uploaden mislukt.",
     auto_title: "✨ Automatisch TikToks maken",
-    auto_desc: "De AI leest het transcript van de hele video, kiest de sterkste momenten en schrijft per clip een hook-caption en posttekst met hashtags.",
+    auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren als TikTok (9:16, blur, ondertitels, caption)",
     auto_button: "Maak TikToks",
-    auto_working: "Video wordt getranscribeerd en de AI zoekt de beste momenten. Bij lange video's kan dit enkele minuten duren...",
-    auto_done: "{count} AI-voorstel(len) toegevoegd. Pas de captions aan als je wilt en exporteer.",
-    auto_done_exporting: "{count} AI-voorstel(len) gevonden, de TikToks worden nu gemaakt...",
-    segment_ai: "AI",
+    auto_working: "Video wordt getranscribeerd en geanalyseerd op de beste momenten. Bij lange video's kan dit enkele minuten duren...",
+    auto_done: "{count} voorstel(len) toegevoegd. Pas de captions aan als je wilt en exporteer.",
+    auto_done_exporting: "{count} voorstel(len) gevonden, de TikToks worden nu gemaakt...",
+    segment_auto: "auto",
     caption_placeholder: "Caption bovenin beeld",
     btn_copy_post: "Kopieer posttekst",
     msg_copied: "Posttekst gekopieerd.",
@@ -1405,8 +1405,8 @@ const I18N = {
     vert_desc: "Ideal for TikTok, Shorts & Reels",
     vert_blur: "Blurred background (instead of black bars)",
     vert_logo: "Logo below subtitles:",
-    caption_title: "Top caption (AI or comments)",
-    caption_desc: "Uses the clip's AI caption, or otherwise the highest-rated comment with a timestamp. For a blurred area above the video, also choose 9:16 and blurred background.",
+    caption_title: "Top caption (automatic or comments)",
+    caption_desc: "Uses the clip's automatic caption, or otherwise the highest-rated comment with a timestamp. For a blurred area above the video, also choose 9:16 and blurred background.",
     caption_position: "Caption position:",
     caption_above: "Above the video (top margin)",
     caption_top: "Top of the video",
@@ -1465,13 +1465,13 @@ const I18N = {
     err_generic: "Something went wrong.",
     err_logo_upload: "Failed to upload logo.",
     auto_title: "✨ Make TikToks automatically",
-    auto_desc: "The AI reads the transcript of the whole video, picks the strongest moments and writes a hook caption and post text with hashtags for each clip.",
+    auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export as TikTok right away (9:16, blur, subtitles, caption)",
     auto_button: "Make TikToks",
-    auto_working: "Transcribing the video and letting the AI find the best moments. Long videos can take a few minutes...",
-    auto_done: "Added {count} AI suggestion(s). Edit the captions if you like, then export.",
-    auto_done_exporting: "Found {count} AI suggestion(s), creating the TikToks now...",
-    segment_ai: "AI",
+    auto_working: "Transcribing and analysing the video for the best moments. Long videos can take a few minutes...",
+    auto_done: "Added {count} suggestion(s). Edit the captions if you like, then export.",
+    auto_done_exporting: "Found {count} suggestion(s), creating the TikToks now...",
+    segment_auto: "auto",
     caption_placeholder: "Caption at the top",
     btn_copy_post: "Copy post text",
     msg_copied: "Post text copied.",
@@ -1889,13 +1889,13 @@ function renderSegments() {
   segments.forEach((s, i) => {
     const li = document.createElement('li');
     const label = document.createElement('span');
-    const suggestionLabel = s.ai ? ` · ${t('segment_ai')}${s.score ? ` ${s.score}/100` : ''}`
+    const suggestionLabel = s.auto ? ` · ${t('segment_auto')}${s.score ? ` ${s.score}/100` : ''}`
       : (s.suggested ? ` · ${t('segment_suggestion')}` : '');
     label.textContent = `${fmt(s.start)} ${t('to')} ${fmt(s.end)} (${Math.round(s.end - s.start)} s)${suggestionLabel}`;
     const main = document.createElement('span');
     main.className = 'segment-main';
     main.appendChild(label);
-    if (s.ai) {
+    if (s.auto) {
       const cap = document.createElement('input');
       cap.className = 'segment-caption';
       cap.value = s.caption || '';
@@ -2086,7 +2086,7 @@ $('#generate-suggestions-btn').onclick = () => {
   $('#segments').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
-// --- automatisch TikToks maken (AI) ---
+// --- automatisch TikToks maken ---
 $('#auto-btn').onclick = async () => {
   const btn = $('#auto-btn');
   const [minLen, maxLen] = $('#auto-length').value.split('-').map(Number);
@@ -2100,8 +2100,10 @@ $('#auto-btn').onclick = async () => {
       max_len: maxLen,
       language: $('#lang').value,
       bins: analysisData && Array.isArray(analysisData.bins) ? analysisData.bins : null,
+      comments: analysisData && Array.isArray(analysisData.caption_comments)
+        ? analysisData.caption_comments : null,
     });
-    const manualSegments = segments.filter(segment => !segment.suggested && !segment.ai);
+    const manualSegments = segments.filter(segment => !segment.suggested && !segment.auto);
     const aiSegments = data.clips
       .filter(c => !manualSegments.some(m => c.start < m.end && c.end > m.start))
       .map(c => ({
@@ -2111,7 +2113,7 @@ $('#auto-btn').onclick = async () => {
         reason: c.reason,
         score: c.score,
         postText: [c.description, (c.hashtags || []).join(' ')].filter(Boolean).join('\n\n'),
-        ai: true,
+        auto: true,
       }));
     segments = [...manualSegments, ...aiSegments].sort((a, b) => a.start - b.start);
     captionToggle.checked = true;

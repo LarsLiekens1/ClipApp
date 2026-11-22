@@ -23,7 +23,7 @@ from delivery import (
     deliver_clip,
 )
 from video_analysis import analyze_video_info
-from ai_clips import AI_MODEL, AIClipError, suggest_clips
+from auto_clips import AutoClipError, loudness_per_second, suggest_clips
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -477,12 +477,14 @@ def analyze_comments():
 
 
 def full_transcript(d, url, language):
-    """Transcribeer de hele video één keer en bewaar het resultaat in transcript.json."""
+    """Transcribeer de hele video één keer en meet de luidheid per seconde.
+    Het resultaat wordt bewaard in transcript.json, dus een tweede keer is direct klaar.
+    Geeft (cues, energy) terug."""
     cache = d / "transcript.json"
     if cache.exists():
         saved = json.loads(cache.read_text(encoding="utf-8"))
-        if saved.get("language") == (language or ""):
-            return saved["cues"]
+        if saved.get("language") == (language or "") and "energy" in saved:
+            return saved["cues"], saved["energy"]
     source = find_file(d, "preview")             # andere sites: de preview staat al lokaal
     audio = None
     try:
@@ -499,6 +501,7 @@ def full_transcript(d, url, language):
         run(["ffmpeg", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000",
              "-c:a", "pcm_s16le", str(wav)])
         try:
+            energy = loudness_per_second(read_wav(wav))
             cues = transcribe(wav, language, show_bar)
         finally:
             wav.unlink(missing_ok=True)
@@ -507,13 +510,14 @@ def full_transcript(d, url, language):
     finally:
         if audio:
             audio.unlink(missing_ok=True)
-    cache.write_text(json.dumps({"language": language or "", "cues": cues}), encoding="utf-8")
-    return cues
+    cache.write_text(json.dumps({"language": language or "", "cues": cues, "energy": energy}),
+                     encoding="utf-8")
+    return cues, energy
 
 
 @app.post("/api/auto-clips")
 def auto_clips():
-    """Laat de AI de beste TikTok-momenten kiezen, met hook-caption en posttekst."""
+    """Kies automatisch de beste TikTok-momenten, met hook-caption en posttekst (alles lokaal)."""
     data = request.get_json(silent=True) or {}
     d = job_dir(str(data.get("job", "")))
     try:
@@ -532,22 +536,21 @@ def auto_clips():
     if language not in (None, "nl", "en", "fr", "de"):
         return jsonify(error="Ongeldige taal."), 400
     bins = data.get("bins") if isinstance(data.get("bins"), list) else None
+    comments = data.get("comments") if isinstance(data.get("comments"), list) else None
 
     t_all = time.time()
-    log(f"=== Automatische TikToks: transcript + AI ({count} clips, {min_len:.0f}-{max_len:.0f} s) ===")
+    log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s) ===")
     try:
-        cues = full_transcript(d, meta["url"], language)
-        t = step(1, 1, f"AI kiest de beste momenten ({AI_MODEL})...")
+        cues, energy = full_transcript(d, meta["url"], language)
         clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
-                              bins=bins, caption_language=language)
-        step_done(t)
-    except AIClipError as e:
+                              bins=bins, comments=comments, energy=energy)
+    except AutoClipError as e:
         log(f"MISLUKT: {e}")
-        return jsonify(error=str(e)), 502
+        return jsonify(error=str(e)), 422
     except Exception as e:
         log(f"MISLUKT: {e}")
         return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
-    log(f"AI KLAAR: {len(clips)} voorstel(len) in {time.time() - t_all:.0f} s.")
+    log(f"VOORSTELLEN KLAAR: {len(clips)} clip(s) gekozen in {time.time() - t_all:.0f} s.")
     return jsonify(clips=clips)
 
 
