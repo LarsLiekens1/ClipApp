@@ -10,186 +10,252 @@ pinned: false
 
 # ClipAPP
 
-Een complete, privacy-vriendelijke video clipper en tijdlijn-editor gebouwd met Python Flask, FFmpeg, yt-dlp en faster-whisper.
+**Maak clips van online video's of bewerk je eigen media op een tijdlijn.**
 
----
+ClipAPP is een browserapp met twee onderdelen:
 
-## Systeemarchitectuur & Visuele Schema's
+- **Clipper (URL):** laad een video, selecteer fragmenten en exporteer ze met optionele ondertitels en een verticaal formaat.
+- **Tijdlijneditor:** knip en combineer lokale video- en audiobestanden en exporteer het resultaat.
 
-ClipAPP bestaat uit twee kernpipelines: de **Clipper Pipeline** (voor webvideo's) en de **Tijdlijn Editor Pipeline** (voor lokale mediabestanden).
+De interface is beschikbaar in het Nederlands en Engels.
 
-### 1. Overzicht Architectuur
+## Inhoud
 
-```mermaid
-graph TD
-    Client["💻 Webbrowser (Frontend GUI)"]
-    Server["🐍 Flask Backend (app.py)"]
-    Storage["📁 Lokale Opslag (work/{job_id}/)"]
-    
-    YTDLP["📥 yt-dlp (Extractor & Trimmer)"]
-    Whisper["🤖 faster-whisper (AI Spraakmodel)"]
-    FFmpeg["🎬 FFmpeg & ffprobe (Video Engine)"]
+- [Functies](#functies)
+- [Snel starten](#snel-starten)
+- [Clipper](#clipper)
+- [Tijdlijneditor](#tijdlijneditor)
+- [Video mailen](#video-mailen)
+- [Privacy en bestanden](#privacy-en-bestanden)
+- [Opdrachtregelhulpmiddelen](#opdrachtregelhulpmiddelen)
+- [Ontwikkelen en testen](#ontwikkelen-en-testen)
+- [Projectstructuur](#projectstructuur)
+- [Problemen oplossen](#problemen-oplossen)
+- [Licentie](#licentie)
 
-    Client <-->|"REST API & Stream /media/"| Server
-    Server <-->|"Sessie-bestanden & metadata"| Storage
-    Server -->|"CLI Commando's"| YTDLP
-    Server -->|"In-Memory 16kHz Audio"| Whisper
-    Server -->|"Filtergraphs & Concat"| FFmpeg
+## Functies
+
+| Onderdeel | Wat je ermee kunt |
+| --- | --- |
+| Clipper | Fragmenten selecteren uit YouTube-video's en andere door `yt-dlp` ondersteunde videobronnen. |
+| Commentanalyse | YouTube-commenttijdstempels vergelijken met een beschikbare kijkersheatmap. |
+| Clipvoorstellen | Niet-overlappende fragmenten voorstellen rond activiteit in comments en heatmap. |
+| Tijdlijneditor | Lokale video- en audiobestanden knippen, verplaatsen, trimmen en samenvoegen. |
+| Export | Video exporteren als 9:16, 16:9, vierkant of in het formaat van de eerste videobron; optioneel met geblurde achtergrond of watermark. |
+
+## Snel starten
+
+### Vereisten
+
+- Python 3.10 of hoger
+- FFmpeg en `ffprobe`, beschikbaar via `PATH`
+- Internetverbinding bij de eerste start om Python-pakketten te installeren; ook het Whisper-model wordt bij de eerste ondertitelgeneratie opgehaald
+
+Controleer na de installatie van FFmpeg of beide opdrachten werken:
+
+```text
+ffmpeg -version
+ffprobe -version
 ```
 
----
+### Windows
 
-### 2. Clipper Pipeline (Weblink naar Shorts / Clips)
+1. Installeer Python en [FFmpeg](https://ffmpeg.org/download.html).
+2. Clone de repository en open de map in PowerShell:
 
-Dit schema toont hoe een externe video wordt geanalyseerd, doelgericht in fragmenten wordt opgehaald, door Whisper van ondertitels wordt voorzien en naar 9:16 verticaal formaat wordt geconverteerd:
-
-```mermaid
-flowchart TD
-    A["🌐 Gebruiker voert URL in"] --> B["🐍 POST /api/load"]
-    B --> C{"Welk platform?"}
-    
-    C -->|"YouTube"| D["▶️ YouTube IFrame Embed (Direct afspelen in browser)"]
-    C -->|"Overige sites"| E["📥 yt-dlp maakt lage resolutie 360p preview"]
-    
-    D --> F["⏱️ Gebruiker markeert fragmenten (Start & Einde)"]
-    E --> F
-    
-    F --> G["🚀 POST /api/render"]
-    
-    subgraph Processing ["⚙️ Verwerking per segment (work/{job_id}/)"]
-        H["1. yt-dlp --download-sections (Alleen fragment in 1080p ophalen)"]
-        H --> I{"Ondertitels gewenst?"}
-        
-        I -->|"Ja"| J["FFmpeg exporteert 16kHz WAV"]
-        J --> K["🤖 faster-whisper genereert woord-timestamps"]
-        K --> L["Schrijf gestylde .ass en .srt bestanden"]
-        I -->|"Nee"| M["Geen ondertitels"]
-        
-        L --> N{"9:16 Verticaal?"}
-        M --> N
-        
-        N -->|"Ja + Blur"| O["FFmpeg split -> scale/boxblur achtergrond + overlay"]
-        N -->|"Ja + Zwart"| P["FFmpeg pad naar 1080x1920 met zwarte balken"]
-        N -->|"Origineel"| Q["Originele beeldverhouding behouden"]
-        
-        O --> R{"Logo meegeleverd?"}
-        P --> R
-        Q --> S["FFmpeg x264/AAC definitieve render"]
-        
-        R -->|"Ja"| T["FFmpeg overlay logo onder ondertitels"]
-        R -->|"Nee"| S
-        T --> S
-    end
-    
-    G --> Processing
-    S --> U["📦 Output: clip_01.mp4 + clip_01.srt"]
-    U --> V["💾 Download & preview in browser"]
-```
-
----
-
-### 3. Tijdlijn Editor Pipeline (Lokale Bestanden naar Geheel)
-
-Dit schema toont hoe lokale video- en audiobestanden worden geüpload, op een interactieve tijdlijn worden gemanipuleerd en naadloos worden samengevoegd:
-
-```mermaid
-flowchart TD
-    A1["📁 Gebruiker sleept video- of audiobestanden"] --> B1["🐍 POST /api/editor/upload"]
-    B1 --> C1["🔍 ffprobe inspecteert streams, resolutie, rotatie & duur"]
-    C1 --> D1["Opslaan in work/{job_id}/ & sources.json"]
-    
-    D1 --> E1["🎛️ Interactieve browser tijdlijn"]
-    E1 --> E2["Knippen (S) • Wissen (Del) • Dupliceren (D) • Trimmen • Verslepen"]
-    
-    E2 --> F1["🚀 POST /api/editor/export met geordende clips"]
-    
-    subgraph Montage ["🎞️ Montage Pipeline (work/{job_id}/ed_tmp/)"]
-        G1["Knip elk stuk met -ss en -t uit bronbestand"]
-        G1 --> H1["Normaliseer resolutie, SAR en framerate (30fps)"]
-        H1 --> I1["Tijdelijke segmenten seg_001.mkv aanmaken"]
-        I1 --> J1["FFmpeg concat demuxer voegt alle stukken samen"]
-    end
-    
-    F1 --> Montage
-    J1 --> K1["📦 Eindresultaat: bewerkt_HHMMSS.mp4 of .mp3"]
-    K1 --> L1["💾 Direct afspelen & downloaden"]
-```
-
----
-
-## Gebruikte Technologieën
-
-| Component | Tool / Bibliotheek | Rol & Doel |
-| :--- | :--- | :--- |
-| **Webserver** | [Flask](https://flask.palletsprojects.com/) | Lokale server, API-routing en taakisolatie per sessie (`work/{job_id}/`). |
-| **Media Downloader** | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Snel ophalen van metadata en doelgerichte fragment-extractie in 1080p. |
-| **AI Ondertiteling** | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | CTranslate2 Whisper spraakherkenning met woord-voor-woord timestamps (100% lokaal). |
-| **Video & Audio Engine** | [FFmpeg](https://ffmpeg.org/) & `ffprobe` | Transcoding, filtergraphs (boxblur, crop, scale), logo-overlays en concat montage. |
-| **Frontend GUI** | HTML5 / Vanilla JS & CSS | Donkere Pro-Studio interface met multitrack-tijdlijn zonder zware frameworks. |
-
----
-
-## Privacy & Lokale Verwerking
-
-- **100% Lokaal**: Zowel spraakherkenning (`faster-whisper`) als videoverwerking (`ffmpeg`) draaien volledig op je eigen processor / videokaart.
-- **YouTube-commentanalyse**: Bij een geladen YouTube-video kun je genoemde commenttijdstempels vergelijken met de beschikbare kijkersheatmap. De analyse haalt maximaal 1.000 comments op, toont exacte cijfers per interval en maakt bewerkbare clipvoorstellen (standaard drie van 30 seconden). Je kunt voorstellen previewen/verwijderen en daarna ondertitels, 9:16-formaat en blur kiezen. Heatmaps zijn niet voor elke video beschikbaar en hun score is relatief, geen absoluut aantal kijkers.
-- **E-mail alleen op verzoek**: Een clip wordt pas naar Gmail/Google Drive gestuurd nadat je bij die clip op **Mail video** klikt. Clips groter dan 17 MiB worden privé gedeeld met alleen het ingevulde e-mailadres; er wordt geen openbare Drive-link aangemaakt.
-- **Lokale terminalfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
-
----
-
-## Vereisten
-
-- Python 3.10 of nieuwer
-- [FFmpeg](https://ffmpeg.org/download.html) geïnstalleerd en bereikbaar via je systeem PATH.
-- Ubuntu/Debian: installeer ook de benodigde systeemprogramma's met `sudo apt install python3-venv ffmpeg`.
-
----
-
-## Installatie & Gebruik
-
-1. **Clone de repository**:
-   ```bash
+   ```powershell
    git clone https://github.com/LarsLiekens1/ClipApp.git
    cd ClipApp
    ```
 
-2. **Start de lokale server** vanuit de terminal (de eerste keer kan dit even duren):
-   ```bash
-   # Windows
-   python start.py
+3. Start de app:
 
-   # macOS/Linux
-   python3 start.py
+   ```powershell
+   python start.py
    ```
 
-   De starter maakt automatisch een `.venv` aan, installeert de Python-packages uit `requirements.txt` en opent de localhost-pagina in je gewone browser. ClipAPP draait alleen in de terminal en je browser; er is geen ingebouwd desktopvenster. Bij latere starts worden de packages alleen opnieuw geïnstalleerd als dat bestand is gewijzigd. Je hoeft de virtuele omgeving niet handmatig te activeren.
+   Je kunt ook `ClipAPP.bat` starten.
 
-   Zowel `python start.py` als `python app.py` toont de kleurrijke terminalbanner. `start.py` opent de browser, bindt alleen aan je eigen computer en gebruikt poort `5050`; `app.py` gebruikt standaard poort `7860` en is de container/Hugging Face-startmethode.
+### macOS of Linux
 
-3. Open je browser op:
-   - **Clipper**: `http://127.0.0.1:5050/`
-   - **Tijdlijn Editor**: `http://127.0.0.1:5050/editor`
+Installeer eerst Python en FFmpeg, clone daarna de repository en start de app:
 
-FFmpeg is een apart systeemprogramma en wordt niet automatisch geïnstalleerd. Op Ubuntu/Debian kun je het installeren met `sudo apt install python3-venv ffmpeg`. Als apt meldt dat het vergrendeld is door automatische updates, wacht dan tot die klaar zijn en probeer opnieuw; verwijder het lock-bestand niet.
+```bash
+git clone https://github.com/LarsLiekens1/ClipApp.git
+cd ClipApp
+python3 start.py
+```
 
-### Video per e-mail versturen
+`start.py` maakt zo nodig een virtuele Python-omgeving, installeert de pakketten uit [`requirements.txt`](requirements.txt), controleert FFmpeg en opent de browser. De lokale app is beschikbaar op <http://127.0.0.1:5050>. Stop de server met `Ctrl+C` in de terminal.
 
-1. Kopieer `.env.example` naar `.env` in de projectmap (of naast `ClipAPP.exe`) en stel `GMAIL_FROM` in op het Gmail-adres dat je met OAuth gaat autoriseren. Maak in Google Cloud een project, schakel de **Gmail API** in en configureer het OAuth-toestemmingsscherm. Voeg je Google-account toe als testgebruiker zolang de app in de testmodus staat.
-2. Maak een OAuth-client van het type **Desktop app**, download het JSON-bestand en plaats het als `%USERPROFILE%\.clipapp\google_oauth_client.json` (macOS/Linux: `~/.clipapp/google_oauth_client.json`). Optioneel kun je een ander pad instellen met `GOOGLE_OAUTH_CLIENT_FILE` in `.env` in de projectmap (of naast `ClipAPP.exe`).
-3. Klik in de Tijdlijn Editor bij een clip of video-export op **Mail video** en vul het e-mailadres van de ontvanger in. De eerste keer opent Google een toestemmingspagina; ClipAPP vraagt alleen toestemming om Gmail-berichten te versturen. Het toegangstoken wordt lokaal in `%USERPROFILE%\.clipapp\google_gmail_token.json` bewaard. Een Google-app-wachtwoord is niet nodig.
-4. Video's tot 17 MiB worden als e-mailbijlage verstuurd. Voor grotere video's schakelt ClipAPP ook Google Drive in: schakel dan de **Google Drive API** in en geef bij de eerste grote video apart toestemming. De video wordt alleen-lezen gedeeld met het opgegeven e-mailadres.
+### Docker en Hugging Face Spaces
 
----
+De meegeleverde Dockerfile gebruikt poort `7860`. Bouw en start de container zo:
 
-## Disclaimer & Fair Use
+```bash
+docker build -t clipapp .
+docker run --rm -p 7860:7860 clipapp
+```
 
-Deze software is uitsluitend ontwikkeld voor educatieve en persoonlijke doeleinden, voor eigen video's of voor media waarvan je toestemming hebt van de rechthebbende. De maker is niet aansprakelijk voor eventuele schendingen van auteursrechten of gebruiksvoorwaarden van externe platforms.
+Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `7860` als `PORT` niet is ingesteld. Deze server bindt standaard aan alle netwerkinterfaces; zie [Privacy en bestanden](#privacy-en-bestanden) voordat je hem publiek bereikbaar maakt. De e-mailintegratie wordt alleen door de lokale startmethode ingeschakeld.
 
----
+## Clipper
 
-## Licentie & Externe Bibliotheken
+1. Open **Clipper (URL)** en plak een videolink.
+2. Laad de video. YouTube wordt in de pagina afgespeeld. Voor andere bronnen maakt de app een kleine preview om te kunnen zoeken en afspelen.
+3. Stel start- en eindtijden in en voeg fragmenten toe, of analyseer een YouTube-video om fragmenten voor te laten stellen.
+4. Controleer de selectie en kies eventuele exportopties.
+5. Maak de clips en bekijk of download de resultaten.
 
-Dit project is beschikbaar onder de [MIT Licentie](LICENSE).
+De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de videosite toestaat.
 
-Voor een volledig overzicht van alle gebruikte open-source bibliotheken, fonts en tools inclusief hun respectievelijke licenties (zoals Flask, yt-dlp, faster-whisper en FFmpeg), zie het document **[THIRD_PARTY.md](THIRD_PARTY.md)**.
+### Comments, heatmap en clipvoorstellen
+
+De analysefunctie is bedoeld voor YouTube-video's. ClipAPP vraagt maximaal **1.000 comments** op en telt herkenbare tijdstempels in de commenttekst, zoals `1:23` en `1:02:03`. De tijdlijn wordt in intervallen ingedeeld; bij lange video's worden die intervallen groter.
+
+Als YouTube een kijkersheatmap beschikbaar stelt, toont de app daarnaast een **relatieve heatmapscore** per interval. Dat is geen absoluut aantal kijkers. Sommige video's hebben geen heatmap, geen toegankelijke comments of onvoldoende gegevens; in dat geval kan de analyse beperkt zijn.
+
+Na de analyse kun je clipvoorstellen genereren:
+
+- Standaard: **3 clips van 30 seconden**.
+- Instelbaar: **1–5 clips** van **15, 30, 45 of 60 seconden**.
+- Als zowel comments als heatmap beschikbaar zijn, tellen beide signalen even zwaar mee in de rangschikking. Zonder heatmap gebruikt de app alleen de commentactiviteit.
+- Voorstellen overlappen elkaar niet. Je kunt ze vooraf bekijken en ongewenste voorstellen verwijderen. Voor een andere selectie kun je de start- en eindtijd handmatig instellen.
+
+Een voorstel is geen garantie dat een fragment inhoudelijk interessant is; controleer de preview voordat je exporteert.
+
+### Exportopties van de Clipper
+
+- **Ondertitels:** optioneel, met automatische taalherkenning of Nederlands, Engels, Frans en Duits. De Whisper-modellen draaien lokaal; het gekozen model wordt bij het eerste gebruik gedownload.
+- **Verticaal 9:16:** maak een formaat voor bijvoorbeeld Shorts of Reels.
+- **Geblurde achtergrond:** vul de verticale beeldruimte met een vervaagde versie van de video.
+- **Logo:** voeg bij verticale clips een PNG-, JPG- of WebP-logo toe.
+
+## Tijdlijneditor
+
+Open **Tijdlijn Editor** om lokale bestanden toe te voegen. De editor accepteert video- en audioformaten die FFmpeg kan lezen; veelgebruikte formaten zijn MP4, MOV, MKV, WebM, MP3, WAV, M4A, FLAC, OGG en Opus. Bij audiobestanden met een geluidsspoor kan de app een golfvorm tonen.
+
+### Bewerken
+
+- Sleep fragmenten op de tijdlijn om ze te verplaatsen.
+- Sleep de randen om fragmenten bij te snijden.
+- Gebruik de afspeelkop om een fragment te selecteren of te splitsen.
+- Zoom in of uit om nauwkeuriger te werken.
+
+| Sneltoets | Actie |
+| --- | --- |
+| Spatie | Afspelen of pauzeren |
+| `S` | Splitsen bij de afspeelkop |
+| `Delete` of `Backspace` | Geselecteerd fragment verwijderen |
+| `D` | Fragment dupliceren |
+| `Ctrl+Z` / `Ctrl+Y` | Ongedaan maken / opnieuw |
+
+### Exportformaten
+
+- **Automatisch:** gebruik het formaat van de eerste videobron.
+- **Verticaal:** 9:16, 1080 × 1920.
+- **Liggend:** 16:9, 1920 × 1080.
+- **Vierkant:** 1080 × 1080.
+- **Alleen audio:** exporteer als MP3.
+- **Geblurde achtergrond:** vul het gekozen videoformaat met een vervaagde achtergrond.
+- **Watermark:** plaats een afbeelding op de video; deze optie is beschikbaar voor video-export in 9:16.
+
+## Video mailen
+
+Video mailen is optioneel en werkt alleen met de lokale desktopstart via `python start.py` of `ClipAPP.bat`. Het gebruikt Google OAuth; ClipAPP vraagt niet om je Google-wachtwoord.
+
+1. Maak een lokaal `.env`-bestand op basis van [`.env.example`](.env.example).
+2. Vul `GMAIL_FROM` in met het Google-adres waarmee je wilt verzenden.
+3. Maak in Google Cloud een OAuth-client van het type **Desktop-app** en schakel de Gmail API in. Bij een OAuth-app in testmodus moet je je Google-account als testgebruiker toevoegen.
+4. Plaats het OAuth-clientbestand standaard als `google_oauth_client.json` in de map `.clipapp` in je thuismap. Je kunt het pad aanpassen met `GOOGLE_OAUTH_CLIENT_FILE`.
+5. Start ClipAPP lokaal en kies de e-mailoptie bij een geëxporteerde video. Bij het eerste gebruik opent Google de OAuth-toestemming.
+
+Video's tot en met **17 MiB** worden als bijlage verstuurd. Voor grotere MP4-bestanden gebruikt ClipAPP Google Drive en deelt het bestand privé met het opgegeven e-mailadres; daarvoor moet ook de Drive API ingeschakeld zijn. De OAuth-tokens worden lokaal in de map `.clipapp` in je thuismap bewaard. Deel of commit je `.env`, OAuth-bestand of tokens niet.
+
+## Privacy en bestanden
+
+- Videoverwerking, cliprendering en ondertitelgeneratie gebeuren lokaal met FFmpeg en Whisper.
+- De app maakt wel netwerkverbindingen: `yt-dlp` haalt videogegevens, comments of videofragmenten bij de bron op; de YouTube-speler wordt in de browser geladen. De interface gebruikt ook Google Fonts.
+- Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Ze worden niet automatisch na elke export verwijderd; verwijder ongewenste bestanden daar zelf om schijfruimte vrij te maken.
+- In Docker staat `work/` in de container. Met `docker run --rm` verdwijnen die bestanden wanneer de container wordt verwijderd, tenzij je een volume voor `work/` koppelt.
+- E-mailen verstuurt het gekozen bestand via Google. Bestanden boven 17 MiB worden via Google Drive privé gedeeld met de ontvanger.
+- De Docker-/`app.py`-server heeft geen gebruikersaanmelding of toegangsbeheer en bindt standaard aan `0.0.0.0`. Stel hem niet zonder aanvullende toegangsbeveiliging publiek beschikbaar en verwerk er geen gevoelige bestanden mee.
+
+## Opdrachtregelhulpmiddelen
+
+Naast de webapp zijn er twee losse scripts:
+
+- `heatmap.py` haalt heatmapgegevens voor een video op en toont drukke intervallen, als die gegevens beschikbaar zijn.
+- `chatpieken.py` zoekt drukke intervallen in de chatreplay van een livestream. Dit is niet hetzelfde als commentanalyse.
+
+De scripts gebruiken de `yt-dlp`-opdracht. Activeer daarom eerst de virtuele omgeving die `start.py` heeft gemaakt:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python heatmap.py "https://www.youtube.com/watch?v=VIDEO_ID"
+python chatpieken.py "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+Op macOS of Linux:
+
+```bash
+source .venv/bin/activate
+python heatmap.py "https://www.youtube.com/watch?v=VIDEO_ID"
+python chatpieken.py "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+**Let op:** `chatpieken.py` verwijdert bestaande `livechat*.live_chat.json`-bestanden in de huidige werkmap voordat het een nieuwe chatreplay ophaalt. Voer het script uit in een aparte map als je zulke bestanden wilt bewaren.
+
+## Ontwikkelen en testen
+
+Na de eerste start kun je de tests uitvoeren met:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Of, op macOS en Linux:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+## Projectstructuur
+
+| Bestand of map | Doel |
+| --- | --- |
+| `app.py` | Flask-server, API-routes en media-export |
+| `index.html` | Interface voor de URL-clipper en commentanalyse |
+| `editor.html` | Interface voor de tijdlijneditor |
+| `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |
+| `delivery.py` | Optionele Gmail- en Drive-integratie |
+| `start.py` | Lokale start, virtuele omgeving en controles |
+| `heatmap.py`, `chatpieken.py` | Losse opdrachtregelhulpmiddelen |
+| `tests/` | Geautomatiseerde tests |
+| `work/` | Tijdelijke taakbestanden en exports |
+
+## Problemen oplossen
+
+### FFmpeg of ffprobe wordt niet gevonden
+
+Installeer FFmpeg, voeg de map met `ffmpeg` en `ffprobe` toe aan `PATH` en open daarna een nieuwe terminal. Controleer beide opdrachten met `-version`.
+
+### De app start niet op poort 5050
+
+Controleer of er al een ClipAPP-server draait en stop die met `Ctrl+C` in de bijbehorende terminal. De lokale startmethode gebruikt poort `5050`; de Docker-/`app.py`-methode gebruikt standaard `7860`.
+
+### Comments of heatmap ontbreken
+
+Comments kunnen uitgeschakeld, beperkt of niet beschikbaar zijn. Een heatmap is niet voor elke video beschikbaar. De commentgrafiek kan daarom wel resultaten tonen terwijl de heatmap ontbreekt.
+
+### Ondertitels genereren duurt lang
+
+De eerste keer wordt het Whisper-model gedownload. De verwerking draait op de lokale computer; een groter model kan nauwkeuriger maar ook trager zijn.
+
+### E-mailen is niet beschikbaar
+
+Start de app met `python start.py` of `ClipAPP.bat` en controleer de Google OAuth-configuratie. De e-mailfunctie is standaard niet ingeschakeld bij `python app.py` of in Docker.
+
+## Licentie
+
+ClipAPP wordt uitgebracht onder de MIT-licentie. Zie [`LICENSE`](LICENSE) en [`THIRD_PARTY.md`](THIRD_PARTY.md) voor de licentie- en bibliotheekinformatie.
