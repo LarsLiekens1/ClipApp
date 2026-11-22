@@ -378,6 +378,42 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
   }
+  .analysis-suggestions {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .analysis-suggestions h3 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+  }
+  .analysis-suggestions > p {
+    margin: 0 0 12px;
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+  }
+  .analysis-suggestion-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .analysis-suggestion-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .analysis-suggestion-controls select {
+    min-width: 130px;
+  }
+  #analysis-suggestion-status {
+    margin: 12px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+  }
   #analysis-data-table {
     width: 100%;
     min-width: 520px;
@@ -1025,6 +1061,33 @@
             <tbody id="analysis-data-rows"></tbody>
           </table>
         </div>
+        <div class="analysis-suggestions">
+          <h3 data-i18n="analysis_suggestions_title">Automatische clipvoorstellen</h3>
+          <p data-i18n="analysis_suggestions_desc">De voorstellen combineren commentvermeldingen en kijkersinteresse. Je kunt ze eerst bekijken en ongewenste stukken verwijderen.</p>
+          <div class="analysis-suggestion-controls">
+            <label for="analysis-clip-count">
+              <span data-i18n="analysis_suggestion_count">Aantal clips</span>
+              <select id="analysis-clip-count">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+            <label for="analysis-clip-duration">
+              <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+              <select id="analysis-clip-duration">
+                <option value="15">15 s</option>
+                <option value="30" selected>30 s</option>
+                <option value="45">45 s</option>
+                <option value="60">60 s</option>
+              </select>
+            </label>
+            <button type="button" class="primary" id="generate-suggestions-btn" data-i18n="analysis_generate_suggestions">Genereer clipvoorstellen</button>
+          </div>
+          <p id="analysis-suggestion-status" role="status" aria-live="polite"></p>
+        </div>
       </div>
     </div>
 
@@ -1141,6 +1204,7 @@
 const $ = s => document.querySelector(s);
 let job = null, duration = 0, segments = [];
 let analysisData = null;
+let suggestionMessage = null;
 const player = $('#player');
 let yt = null;
 
@@ -1181,6 +1245,7 @@ const I18N = {
     results_title: "Gegenereerde Clips",
     btn_preview: "Bekijk",
     btn_delete: "Verwijder",
+    segment_suggestion: "voorstel",
     email_recipient: "E-mailadres ontvanger",
     email_placeholder: "naam@voorbeeld.nl",
     btn_email: "Mail video",
@@ -1205,6 +1270,14 @@ const I18N = {
     analysis_table_interval: "Video-interval",
     analysis_table_mentions: "Timestamps genoemd",
     analysis_table_score: "Heatmapscore (relatief)",
+    analysis_suggestions_title: "Automatische clipvoorstellen",
+    analysis_suggestions_desc: "De rangschikking combineert commentvermeldingen en kijkersinteresse; als beide beschikbaar zijn tellen ze even zwaar. Bekijk de voorstellen en verwijder ongewenste stukken voordat je exporteert.",
+    analysis_suggestion_count: "Aantal clips",
+    analysis_suggestion_duration: "Lengte per clip",
+    analysis_generate_suggestions: "Genereer clipvoorstellen",
+    analysis_suggestions_added_singular: "1 clipvoorstel toegevoegd aan 'Geselecteerde stukken'. Bekijk het, verwijder het als nodig en kies daarna ondertitels, formaat en blur.",
+    analysis_suggestions_added_plural: "{count} clipvoorstellen toegevoegd aan 'Geselecteerde stukken'. Bekijk ze, verwijder ongewenste stukken en kies daarna ondertitels, formaat en blur.",
+    analysis_suggestions_none: "Geen nieuwe voorstellen gevonden. Mogelijk ontbreken pieken of overlappen ze met al gekozen stukken.",
     analysis_chart_label: "Grafiek van genoemde tijdstempels en relatieve kijkersinteresse per videomoment.",
     msg_searching: "Video wordt opgezocht...",
     msg_loaded: "Video geladen ({duration}). Selecteer nu de stukken.",
@@ -1258,6 +1331,7 @@ const I18N = {
     results_title: "Generated Clips",
     btn_preview: "Preview",
     btn_delete: "Delete",
+    segment_suggestion: "suggestion",
     email_recipient: "Recipient email address",
     email_placeholder: "name@example.com",
     btn_email: "Email video",
@@ -1282,6 +1356,14 @@ const I18N = {
     analysis_table_interval: "Video interval",
     analysis_table_mentions: "Timestamps mentioned",
     analysis_table_score: "Heatmap score (relative)",
+    analysis_suggestions_title: "Automatic clip suggestions",
+    analysis_suggestions_desc: "Suggestions rank moments using comment mentions and viewer interest; when both are available, they count equally. Preview suggestions and remove unwanted clips before exporting.",
+    analysis_suggestion_count: "Number of clips",
+    analysis_suggestion_duration: "Length per clip",
+    analysis_generate_suggestions: "Generate clip suggestions",
+    analysis_suggestions_added_singular: "Added 1 suggestion to 'Selected Clips'. Preview it, remove it if needed, then choose subtitles, format and blur.",
+    analysis_suggestions_added_plural: "Added {count} suggestions to 'Selected Clips'. Preview them, remove unwanted clips, then choose subtitles, format and blur.",
+    analysis_suggestions_none: "No new suggestions found. There may be no peaks, or they may overlap with clips already selected.",
     analysis_chart_label: "Chart of mentioned timestamps and relative viewer interest across the video.",
     msg_searching: "Searching for video...",
     msg_loaded: "Video loaded ({duration}). Select your clips now.",
@@ -1342,19 +1424,59 @@ function setLanguage(lang) {
 
   renderSegments();
   if (analysisData) renderAnalysis(analysisData);
+  if (suggestionMessage) {
+    $('#analysis-suggestion-status').textContent = t(
+      suggestionMessage.key, suggestionMessage.params
+    );
+  }
 }
 
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
 });
 
-const videoCtl = { time: () => player.currentTime, seek: t => { player.currentTime = t; }, play: () => player.play() };
+const videoCtl = {
+  time: () => player.currentTime,
+  seek: t => { player.currentTime = t; },
+  play: () => player.play(),
+  pause: () => player.pause(),
+};
 const ytCtl = {
   time: () => (yt && yt.getCurrentTime ? yt.getCurrentTime() : 0),
   seek: t => yt && yt.seekTo && yt.seekTo(t, true),
   play: () => yt && yt.playVideo && yt.playVideo(),
+  pause: () => yt && yt.pauseVideo && yt.pauseVideo(),
 };
 let ctl = videoCtl;
+let previewPoll = null;
+
+function stopPreviewTracking() {
+  if (previewPoll !== null) clearInterval(previewPoll);
+  previewPoll = null;
+}
+
+function previewSegment(segment) {
+  stopPreviewTracking();
+  const previewController = ctl;
+  let seekObserved = false;
+  let pollsBeforeSeek = 0;
+  previewController.seek(segment.start);
+  previewController.play();
+  previewPoll = setInterval(() => {
+    const currentTime = previewController.time();
+    if (!seekObserved) {
+      seekObserved = Math.abs(currentTime - segment.start) <= 1;
+      if (!seekObserved) {
+        pollsBeforeSeek += 1;
+        if (pollsBeforeSeek >= 50) stopPreviewTracking();
+        return;
+      }
+    }
+    if (currentTime < segment.end) return;
+    previewController.pause();
+    stopPreviewTracking();
+  }, 100);
+}
 
 function startYouTube(id) {
   return new Promise(resolve => {
@@ -1405,6 +1527,62 @@ function fmtHeatmapScore(score) {
   return Number(score.toPrecision(6)).toLocaleString(currentLang, {
     maximumSignificantDigits: 6,
   });
+}
+
+function generateClipSuggestions(data, requestedCount, requestedDuration, existingSegments) {
+  const totalDuration = Number(data.duration);
+  const clipDuration = Math.min(totalDuration, requestedDuration);
+  const bins = Array.isArray(data.bins) ? data.bins : [];
+  if (!Number.isFinite(totalDuration) || totalDuration < 0.5
+      || !Number.isFinite(clipDuration) || clipDuration < 0.5
+      || !Number.isInteger(requestedCount) || requestedCount < 1) return [];
+
+  const maxMentions = Math.max(0, ...bins.map(bin => bin.comment_mentions || 0));
+  const viewerScores = bins
+    .map(bin => bin.viewer_score)
+    .filter(Number.isFinite)
+    .map(score => Math.max(0, score));
+  const maxViewers = Math.max(0, ...viewerScores);
+  const hasMentions = maxMentions > 0;
+  const hasViewers = maxViewers > 0;
+  if (!hasMentions && !hasViewers) return [];
+
+  const bothSignalsAvailable = hasMentions && hasViewers;
+  const commentWeight = bothSignalsAvailable ? 0.5 : (hasMentions ? 1 : 0);
+  const viewerWeight = bothSignalsAvailable ? 0.5 : (hasViewers ? 1 : 0);
+  const rankedBins = bins.map(bin => {
+    const viewerScore = Number.isFinite(bin.viewer_score) ? Math.max(0, bin.viewer_score) : 0;
+    return {
+      bin,
+      viewerScore,
+      rank: (hasMentions ? bin.comment_mentions / maxMentions * commentWeight : 0)
+        + (hasViewers ? viewerScore / maxViewers * viewerWeight : 0),
+    };
+  }).filter(item => item.rank > 0).sort((a, b) =>
+    b.rank - a.rank
+    || b.bin.comment_mentions - a.bin.comment_mentions
+    || b.viewerScore - a.viewerScore
+    || a.bin.start - b.bin.start
+  );
+
+  const suggestions = [];
+  const occupied = existingSegments.slice();
+  for (const candidate of rankedBins) {
+    const center = (candidate.bin.start + candidate.bin.end) / 2;
+    const start = Math.max(0, Math.min(center - clipDuration / 2, totalDuration - clipDuration));
+    const end = start + clipDuration;
+    if (occupied.some(segment => start < segment.end && end > segment.start)) continue;
+    const suggestion = { start, end };
+    suggestions.push(suggestion);
+    occupied.push(suggestion);
+    if (suggestions.length >= requestedCount) break;
+  }
+  return suggestions.sort((a, b) => a.start - b.start);
+}
+
+function setSuggestionStatus(key, params = {}) {
+  suggestionMessage = { key, params };
+  $('#analysis-suggestion-status').textContent = t(key, params);
 }
 
 function renderAnalysis(data) {
@@ -1592,16 +1770,22 @@ function renderSegments() {
   segments.forEach((s, i) => {
     const li = document.createElement('li');
     const label = document.createElement('span');
-    label.textContent = `${fmt(s.start)} ${t('to')} ${fmt(s.end)} (${Math.round(s.end - s.start)} s)`;
+    const suggestionLabel = s.suggested ? ` · ${t('segment_suggestion')}` : '';
+    label.textContent = `${fmt(s.start)} ${t('to')} ${fmt(s.end)} (${Math.round(s.end - s.start)} s)${suggestionLabel}`;
     const actions = document.createElement('span');
     actions.className = 'actions';
     const go = document.createElement('button');
     go.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${t('btn_preview')}`;
-    go.onclick = () => { ctl.seek(s.start); ctl.play(); };
+    go.onclick = () => previewSegment(s);
     const del = document.createElement('button');
     del.className = 'btn-del';
     del.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> ${t('btn_delete')}`;
-    del.onclick = () => { segments.splice(i, 1); renderSegments(); };
+    del.onclick = () => {
+      segments.splice(i, 1);
+      suggestionMessage = null;
+      $('#analysis-suggestion-status').textContent = '';
+      renderSegments();
+    };
     actions.append(go, del);
     li.append(label, actions);
     ul.appendChild(li);
@@ -1677,9 +1861,12 @@ $('#load-form').addEventListener('submit', async e => {
   try {
     const data = await api('/api/load', { url: $('#url').value });
     job = data.job; duration = data.duration; segments = [];
+    stopPreviewTracking();
     analysisData = null;
+    suggestionMessage = null;
     $('#comment-analysis-results').hidden = true;
     $('#comment-analysis-status').textContent = '';
+    $('#analysis-suggestion-status').textContent = '';
     $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
     player.pause();
     $('#editor').hidden = false;
@@ -1707,7 +1894,9 @@ $('#analyze-comments-btn').onclick = async () => {
   const btn = $('#analyze-comments-btn');
   btn.disabled = true;
   analysisData = null;
+  suggestionMessage = null;
   $('#comment-analysis-status').textContent = t('analysis_loading');
+  $('#analysis-suggestion-status').textContent = '';
   $('#comment-analysis-results').hidden = true;
   try {
     const data = await api('/api/analyze-comments', { url: $('#url').value });
@@ -1717,6 +1906,31 @@ $('#analyze-comments-btn').onclick = async () => {
   } finally {
     btn.disabled = false;
   }
+};
+
+$('#generate-suggestions-btn').onclick = () => {
+  if (!analysisData) return;
+  const manualSegments = segments.filter(segment => !segment.suggested);
+  const suggestions = generateClipSuggestions(
+    analysisData,
+    Number($('#analysis-clip-count').value),
+    Number($('#analysis-clip-duration').value),
+    manualSegments
+  );
+  if (!suggestions.length) {
+    setSuggestionStatus('analysis_suggestions_none');
+    return;
+  }
+  segments = [
+    ...manualSegments,
+    ...suggestions.map(segment => ({ ...segment, suggested: true })),
+  ].sort((a, b) => a.start - b.start);
+  renderSegments();
+  const key = suggestions.length === 1
+    ? 'analysis_suggestions_added_singular'
+    : 'analysis_suggestions_added_plural';
+  setSuggestionStatus(key, { count: suggestions.length });
+  $('#segments').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
 // --- clips maken ---
@@ -1739,7 +1953,7 @@ $('#render-btn').onclick = async () => {
       hasLogo = true;
     }
     const data = await api('/api/render', {
-      job, segments,
+      job, segments: segments.map(({ start, end }) => ({ start, end })),
       subtitles: $('#subs').checked,
       language: $('#lang').value,
       vertical: $('#vertical').checked,
