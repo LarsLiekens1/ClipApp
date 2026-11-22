@@ -747,6 +747,14 @@
     box-shadow: 0 0 16px rgba(99, 102, 241, 0.1);
   }
   #group-caption[hidden] { display: none; }
+  .auto-box { border-color: var(--primary, #7c3aed); }
+  .auto-check { display: flex; align-items: center; gap: 0.5rem; flex-direction: row; }
+  .segment-caption {
+    width: 100%; margin-top: 0.4rem; font-size: 0.85rem;
+  }
+  .segment-reason { display: block; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; }
+  .segment-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .post-text { white-space: pre-wrap; font-size: 0.85rem; margin: 0.5rem 0; color: var(--text-muted); }
 
   /* Main Toggle Header */
   .opt-main-toggle {
@@ -1019,6 +1027,36 @@
   <p id="status" role="status" aria-live="polite"></p>
 
   <section id="editor" hidden>
+    <div class="analysis-box auto-box" id="auto-panel">
+      <h2 data-i18n="auto_title">✨ Automatisch TikToks maken</h2>
+      <p data-i18n="auto_desc">De AI leest het transcript van de hele video, kiest de sterkste momenten en schrijft per clip een hook-caption en posttekst met hashtags.</p>
+      <div class="analysis-suggestion-controls">
+        <label for="auto-count">
+          <span data-i18n="analysis_suggestion_count">Aantal clips</span>
+          <select id="auto-count">
+            <option value="3">3</option>
+            <option value="5" selected>5</option>
+            <option value="7">7</option>
+            <option value="10">10</option>
+          </select>
+        </label>
+        <label for="auto-length">
+          <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+          <select id="auto-length">
+            <option value="15-30">15–30 s</option>
+            <option value="20-60" selected>20–60 s</option>
+            <option value="45-90">45–90 s</option>
+          </select>
+        </label>
+        <label class="auto-check" for="auto-export">
+          <input type="checkbox" id="auto-export" checked>
+          <span data-i18n="auto_export">Meteen exporteren als TikTok (9:16, blur, ondertitels, caption)</span>
+        </label>
+        <button type="button" class="primary" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
+      </div>
+      <p id="auto-status" role="status" aria-live="polite"></p>
+    </div>
+
     <div class="analysis-box" id="comment-analysis-panel" hidden>
       <h2 data-i18n="analysis_title">Commenttijdstempels & kijkersmomenten</h2>
       <p data-i18n="analysis_desc">Vergelijk tijdstempels die in YouTube-comments worden genoemd met de beschikbare kijkersheatmap.</p>
@@ -1186,12 +1224,12 @@
             </div>
           </div>
 
-          <div class="opt-group" id="group-caption" hidden>
+          <div class="opt-group" id="group-caption">
             <label class="opt-main-toggle" for="caption-toggle">
               <input type="checkbox" id="caption-toggle">
               <div class="opt-toggle-content">
-                <span class="opt-toggle-title" data-i18n="caption_title">Caption uit comments</span>
-                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruik de best gewaardeerde comment met een timestamp in de clip. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
+                <span class="opt-toggle-title" data-i18n="caption_title">Caption bovenin (AI of comments)</span>
+                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruikt de AI-caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
               </div>
             </label>
             <div class="opt-sub-row disabled" id="caption-position-row">
@@ -1261,8 +1299,8 @@ const I18N = {
     vert_desc: "Ideaal voor TikTok, Shorts & Reels",
     vert_blur: "Geblurde achtergrond (i.p.v. zwarte balken)",
     vert_logo: "Logo onder de ondertitels:",
-    caption_title: "Caption uit comments",
-    caption_desc: "Gebruik de best gewaardeerde comment met een timestamp in de clip. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.",
+    caption_title: "Caption bovenin (AI of comments)",
+    caption_desc: "Gebruikt de AI-caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.",
     caption_position: "Positie caption:",
     caption_above: "Boven de video (bovenste balk)",
     caption_top: "Bovenin de video",
@@ -1320,6 +1358,17 @@ const I18N = {
     err_yt_load: "De YouTube-speler kon niet laden. Je kunt de tijden zelf typen bij Start en Einde.",
     err_generic: "Er ging iets mis.",
     err_logo_upload: "Logo uploaden mislukt.",
+    auto_title: "✨ Automatisch TikToks maken",
+    auto_desc: "De AI leest het transcript van de hele video, kiest de sterkste momenten en schrijft per clip een hook-caption en posttekst met hashtags.",
+    auto_export: "Meteen exporteren als TikTok (9:16, blur, ondertitels, caption)",
+    auto_button: "Maak TikToks",
+    auto_working: "Video wordt getranscribeerd en de AI zoekt de beste momenten. Bij lange video's kan dit enkele minuten duren...",
+    auto_done: "{count} AI-voorstel(len) toegevoegd. Pas de captions aan als je wilt en exporteer.",
+    auto_done_exporting: "{count} AI-voorstel(len) gevonden, de TikToks worden nu gemaakt...",
+    segment_ai: "AI",
+    caption_placeholder: "Caption bovenin beeld",
+    btn_copy_post: "Kopieer posttekst",
+    msg_copied: "Posttekst gekopieerd.",
     msg_email_sending: "Video wordt verstuurd...",
     msg_email_sent_attachment: "Video als bijlage verstuurd naar {recipient}.",
     msg_email_sent_drive: "Privé-Drive-link verstuurd naar {recipient}."
@@ -1356,8 +1405,8 @@ const I18N = {
     vert_desc: "Ideal for TikTok, Shorts & Reels",
     vert_blur: "Blurred background (instead of black bars)",
     vert_logo: "Logo below subtitles:",
-    caption_title: "Caption from comments",
-    caption_desc: "Use the highest-rated comment with a timestamp in the clip. For a blurred area above the video, also choose 9:16 and blurred background.",
+    caption_title: "Top caption (AI or comments)",
+    caption_desc: "Uses the clip's AI caption, or otherwise the highest-rated comment with a timestamp. For a blurred area above the video, also choose 9:16 and blurred background.",
     caption_position: "Caption position:",
     caption_above: "Above the video (top margin)",
     caption_top: "Top of the video",
@@ -1415,6 +1464,17 @@ const I18N = {
     err_yt_load: "The YouTube player could not load. You can manually enter Start and End times.",
     err_generic: "Something went wrong.",
     err_logo_upload: "Failed to upload logo.",
+    auto_title: "✨ Make TikToks automatically",
+    auto_desc: "The AI reads the transcript of the whole video, picks the strongest moments and writes a hook caption and post text with hashtags for each clip.",
+    auto_export: "Export as TikTok right away (9:16, blur, subtitles, caption)",
+    auto_button: "Make TikToks",
+    auto_working: "Transcribing the video and letting the AI find the best moments. Long videos can take a few minutes...",
+    auto_done: "Added {count} AI suggestion(s). Edit the captions if you like, then export.",
+    auto_done_exporting: "Found {count} AI suggestion(s), creating the TikToks now...",
+    segment_ai: "AI",
+    caption_placeholder: "Caption at the top",
+    btn_copy_post: "Copy post text",
+    msg_copied: "Post text copied.",
     msg_email_sending: "Sending video...",
     msg_email_sent_attachment: "Video attachment sent to {recipient}.",
     msg_email_sent_drive: "Private Drive link sent to {recipient}."
@@ -1829,8 +1889,26 @@ function renderSegments() {
   segments.forEach((s, i) => {
     const li = document.createElement('li');
     const label = document.createElement('span');
-    const suggestionLabel = s.suggested ? ` · ${t('segment_suggestion')}` : '';
+    const suggestionLabel = s.ai ? ` · ${t('segment_ai')}${s.score ? ` ${s.score}/100` : ''}`
+      : (s.suggested ? ` · ${t('segment_suggestion')}` : '');
     label.textContent = `${fmt(s.start)} ${t('to')} ${fmt(s.end)} (${Math.round(s.end - s.start)} s)${suggestionLabel}`;
+    const main = document.createElement('span');
+    main.className = 'segment-main';
+    main.appendChild(label);
+    if (s.ai) {
+      const cap = document.createElement('input');
+      cap.className = 'segment-caption';
+      cap.value = s.caption || '';
+      cap.placeholder = t('caption_placeholder');
+      cap.oninput = () => { s.caption = cap.value; };
+      main.appendChild(cap);
+      if (s.reason) {
+        const why = document.createElement('span');
+        why.className = 'segment-reason';
+        why.textContent = s.reason;
+        main.appendChild(why);
+      }
+    }
     const actions = document.createElement('span');
     actions.className = 'actions';
     const go = document.createElement('button');
@@ -1846,7 +1924,7 @@ function renderSegments() {
       renderSegments();
     };
     actions.append(go, del);
-    li.append(label, actions);
+    li.append(main, actions);
     ul.appendChild(li);
   });
   $('#empty').hidden = segments.length > 0;
@@ -1940,8 +2018,9 @@ $('#load-form').addEventListener('submit', async e => {
     $('#comment-analysis-results').hidden = true;
     $('#comment-analysis-status').textContent = '';
     $('#analysis-suggestion-status').textContent = '';
+    $('#auto-status').textContent = '';
     $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
-    groupCaption.hidden = data.mode !== 'youtube';
+    groupCaption.hidden = false;
     player.pause();
     $('#editor').hidden = false;
     $('#results').hidden = true;
@@ -2007,10 +2086,59 @@ $('#generate-suggestions-btn').onclick = () => {
   $('#segments').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
+// --- automatisch TikToks maken (AI) ---
+$('#auto-btn').onclick = async () => {
+  const btn = $('#auto-btn');
+  const [minLen, maxLen] = $('#auto-length').value.split('-').map(Number);
+  btn.disabled = true;
+  $('#auto-status').textContent = t('auto_working');
+  try {
+    const data = await api('/api/auto-clips', {
+      job,
+      count: Number($('#auto-count').value),
+      min_len: minLen,
+      max_len: maxLen,
+      language: $('#lang').value,
+      bins: analysisData && Array.isArray(analysisData.bins) ? analysisData.bins : null,
+    });
+    const manualSegments = segments.filter(segment => !segment.suggested && !segment.ai);
+    const aiSegments = data.clips
+      .filter(c => !manualSegments.some(m => c.start < m.end && c.end > m.start))
+      .map(c => ({
+        start: c.start,
+        end: c.end,
+        caption: c.caption,
+        reason: c.reason,
+        score: c.score,
+        postText: [c.description, (c.hashtags || []).join(' ')].filter(Boolean).join('\n\n'),
+        ai: true,
+      }));
+    segments = [...manualSegments, ...aiSegments].sort((a, b) => a.start - b.start);
+    captionToggle.checked = true;
+    updateCaptionState();
+    renderSegments();
+    if ($('#auto-export').checked && aiSegments.length) {
+      $('#auto-status').textContent = t('auto_done_exporting', { count: aiSegments.length });
+      subsCheck.checked = true; updateSubsState();
+      vertCheck.checked = true; updateVerticalState();
+      $('#blur').checked = true;
+      captionPosition.value = 'above';
+      $('#render-btn').click();
+    } else {
+      $('#auto-status').textContent = t('auto_done', { count: aiSegments.length });
+      $('#segments').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  } catch (err) {
+    $('#auto-status').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 // --- clips maken ---
 $('#render-btn').onclick = async () => {
   const captionsEnabled = captionToggle.checked;
-  if (captionsEnabled && !analysisData) {
+  if (captionsEnabled && !analysisData && segments.some(segment => !segment.caption)) {
     setStatus(t('err_caption_analysis'), true);
     return;
   }
@@ -2018,8 +2146,10 @@ $('#render-btn').onclick = async () => {
     start: segment.start,
     end: segment.end,
     caption: captionsEnabled
-      ? (segment.caption || captionForRange(analysisData, segment.start, segment.end))
+      ? ((segment.caption || '').trim()
+        || (analysisData ? captionForRange(analysisData, segment.start, segment.end) : ''))
       : '',
+    post_text: segment.postText || '',
   }));
   const missingCaptions = captionsEnabled
     ? renderSegments.filter(segment => !segment.caption).length
@@ -2103,7 +2233,31 @@ $('#render-btn').onclick = async () => {
           send.disabled = false;
         }
       };
-      fig.append(v, cap, emailForm);
+      if (c.txt) {
+        const txt = document.createElement('a');
+        txt.href = c.txt; txt.download = c.name.replace('.mp4', '.txt');
+        txt.textContent = 'TXT';
+        cap.appendChild(txt);
+      }
+      const extras = [];
+      if (c.post_text) {
+        const post = document.createElement('p');
+        post.className = 'post-text';
+        post.textContent = c.post_text;
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.textContent = t('btn_copy_post');
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(c.post_text);
+            setStatus(t('msg_copied'));
+          } catch (err) {
+            setStatus(err.message, true);
+          }
+        };
+        extras.push(post, copy);
+      }
+      fig.append(v, cap, ...extras, emailForm);
       box.appendChild(fig);
     });
     $('#results').hidden = false;
