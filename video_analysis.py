@@ -46,12 +46,25 @@ def analyze_video_info(info):
         for start in range(0, math.ceil(duration), bin_seconds)
     ]
 
+    caption_comments = []
     for comment in comments:
         if not isinstance(comment, dict) or not isinstance(comment.get("text"), str):
             continue
+        timestamps = []
         for timestamp in _comment_timestamps(comment["text"]):
             if timestamp < duration:
                 bins[int(timestamp // bin_seconds)]["comment_mentions"] += 1
+                timestamps.append(timestamp)
+        if timestamps:
+            try:
+                like_count = max(0, int(comment.get("like_count") or 0))
+            except (OverflowError, TypeError, ValueError):
+                like_count = 0
+            caption_comments.append({
+                "timestamps": sorted(set(timestamps)),
+                "text": comment["text"][:280],
+                "like_count": like_count,
+            })
 
     heatmap = info.get("heatmap") or []
     if not isinstance(heatmap, list):
@@ -92,4 +105,5 @@ def analyze_video_info(info):
         "timestamp_mentions": sum(chart_bin["comment_mentions"] for chart_bin in bins),
         "bin_seconds": bin_seconds,
         "bins": bins,
+        "caption_comments": caption_comments,
     }

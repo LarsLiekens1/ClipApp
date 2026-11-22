@@ -332,6 +332,34 @@ def write_ass(path, cues, w, h, top=None):
             f.write(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Default,,0,0,0,,{text}\n")
 
 
+def write_caption_ass(path, text, duration, w, h, position):
+    positions = {
+        "above": (8, round(h * 0.05)),
+        "top": (8, round(h * 0.12)),
+        "center": (5, 0),
+        "bottom": (2, round(h * 0.08)),
+    }
+    if position not in positions:
+        raise ValueError("Ongeldige positie voor de caption.")
+    align, margin_v = positions[position]
+    size = max(28, min(56, round(min(w, h) * 0.045)))
+    header = (
+        "[Script Info]\nScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\nWrapStyle: 0\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Caption,Arial,{size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+        f"-1,0,0,0,100,100,0,0,3,8,1,{align},60,60,{margin_v},1\n\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    caption = " ".join(text.split())[:220].replace("\\", "/").replace("{", "(").replace("}", ")")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(header)
+        f.write(f"Dialogue: 0,0:00:00.00,{ass_time(duration)},Caption,,0,0,0,,{caption}\n")
+
+
 def read_wav(path):
     """Lees onze 16 kHz mono wav in als float-array.
     Geven we faster-whisper een array, dan decodeert het zelf niets meer. Dat omzeilt
@@ -530,6 +558,9 @@ def render():
     language = data.get("language") or None
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
     logo_file = find_logo(d) if use_logo else None
+    caption_position = data.get("caption_position", "above")
+    if caption_position not in {"above", "top", "center", "bottom"}:
+        return jsonify(error="Ongeldige positie voor de caption."), 400
     if use_logo and not logo_file:
         return jsonify(error="Het logo is niet gevonden. Kies het logo opnieuw."), 400
     clips = []
@@ -543,8 +574,14 @@ def render():
                 raise ValueError(f"Stuk {i} is te kort of ligt buiten de video.")
             name, stem = f"clip_{i:02}", f"part_{i:02}"
             srt, ass = d / f"{name}.srt", d / f"{name}.ass"
+            caption_ass = d / f"{name}_caption.ass"
             srt.unlink(missing_ok=True)               # oude ondertitels van een eerdere run weg
             ass.unlink(missing_ok=True)
+            caption_ass.unlink(missing_ok=True)
+            caption = seg.get("caption", "")
+            if not isinstance(caption, str):
+                raise ValueError(f"Caption van stuk {i} is ongeldig.")
+            caption = caption.strip()
 
             n_steps = 3 if subs else 2                # ophalen, (ondertitels), renderen
             t_clip = time.time()
@@ -564,6 +601,7 @@ def render():
 
                 filters = []
                 ass_filter = None                     # komt er pas als er ondertitels zijn
+                caption_filter = None
                 vid_bottom = None                     # onderkant van de video in het eindbeeld (9:16)
                 out_w, out_h, top = sw, sh, None      # maat van het eindbeeld + waar de tekst komt
                 if vertical:
@@ -605,6 +643,11 @@ def render():
                         log("Geen spraak gevonden, dus geen ondertitels.")
                     step_done(t)
 
+                if caption:
+                    write_caption_ass(caption_ass, caption, duration_of(part),
+                                      out_w, out_h, caption_position)
+                    caption_filter = f"ass={name}_caption.ass"
+
                 # logo: komt onder de ondertitels (of direct onder de video als er geen ondertitels zijn)
                 logo_box = None
                 if logo_file:
@@ -624,15 +667,16 @@ def render():
                 t = step(n_steps, n_steps, "Clip renderen...")
                 if logo_box:
                     y0, max_h = logo_box
+                    text_filters = [f for f in (ass_filter, caption_filter) if f]
                     fc = (f"[0:v]{','.join(filters)}[v0];"
                           f"[1:v]format=rgba,scale=700:{max_h}:force_original_aspect_ratio=decrease[lg];"
                           f"[v0][lg]overlay=(W-w)/2:{y0}+({max_h}-h)/2[v1];"
-                          + (f"[v1]{ass_filter}[vout]" if ass_filter else "[v1]null[vout]"))
+                          + (f"[v1]{','.join(text_filters)}[vout]"
+                             if text_filters else "[v1]null[vout]"))
                     cmd = ["ffmpeg", "-y", "-i", str(part), "-i", str(logo_file),
                            "-filter_complex", fc, "-map", "[vout]", "-map", "0:a?"]
                 else:
-                    if ass_filter:
-                        filters.append(ass_filter)
+                    filters.extend(f for f in (ass_filter, caption_filter) if f)
                     cmd = ["ffmpeg", "-y", "-i", str(part)]
                     if filters:
                         cmd += ["-vf", ",".join(filters)]

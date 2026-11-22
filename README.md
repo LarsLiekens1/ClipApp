@@ -40,6 +40,7 @@ De interface is beschikbaar in het Nederlands en Engels.
 | Clipper | Fragmenten selecteren uit YouTube-video's en andere door `yt-dlp` ondersteunde videobronnen. |
 | Commentanalyse | YouTube-commenttijdstempels vergelijken met een beschikbare kijkersheatmap. |
 | Clipvoorstellen | Niet-overlappende fragmenten voorstellen rond activiteit in comments en heatmap. |
+| Commentcaptions | Optioneel de best gewaardeerde timestamp-comment als tekstoverlay op YouTube-clips zetten. |
 | Tijdlijneditor | Lokale video- en audiobestanden knippen, verplaatsen, trimmen en samenvoegen. |
 | Export | Video exporteren als 9:16, 16:9, vierkant of in het formaat van de eerste videobron; optioneel met geblurde achtergrond of watermark. |
 
@@ -123,6 +124,8 @@ Na de analyse kun je clipvoorstellen genereren:
 - Voorstellen overlappen elkaar niet. Je kunt ze vooraf bekijken en ongewenste voorstellen verwijderen. Voor een andere selectie kun je de start- en eindtijd handmatig instellen.
 
 Een voorstel is geen garantie dat een fragment inhoudelijk interessant is; controleer de preview voordat je exporteert.
+
+Na de commentanalyse kun je bij het clip-exporteren **Caption uit comments** inschakelen. Per clip gebruikt ClipAPP de best gewaardeerde comment die een timestamp in dat fragment noemt; timestamptekst wordt uit de overlay verwijderd. Dit is een commentselectie, geen AI-herschrijving. Je kunt de overlay bovenin, midden of onderin plaatsen. Voor een aparte bovenbalk boven de video kies je ook **Verticaal 9:16** en **Geblurde achtergrond**.
 
 ### Exportopties van de Clipper
 
