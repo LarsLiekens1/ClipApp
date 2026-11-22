@@ -132,6 +132,7 @@ flowchart TD
 ## Privacy & Lokale Verwerking
 
 - **100% Lokaal**: Zowel spraakherkenning (`faster-whisper`) als videoverwerking (`ffmpeg`) draaien volledig op je eigen processor / videokaart.
+- **YouTube-commentanalyse**: Bij een geladen YouTube-video kun je genoemde commenttijdstempels vergelijken met de beschikbare kijkersheatmap. De analyse haalt maximaal 1.000 comments op; heatmaps zijn niet voor elke video beschikbaar.
 - **E-mail alleen op verzoek**: Een clip wordt pas naar Gmail/Google Drive gestuurd nadat je bij die clip op **Mail video** klikt. Clips groter dan 17 MiB worden privé gedeeld met alleen het ingevulde e-mailadres; er wordt geen openbare Drive-link aangemaakt.
 - **Lokale terminalfunctie**: De e-mailroute werkt alleen als ClipAPP met `start.py` op je eigen computer draait. Hij staat uit bij de publieke Docker/Hugging Face-server.
 

@@ -10,6 +10,7 @@ import time
 import uuid
 import wave
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 from colorama import Fore, Style, just_fix_windows_console
@@ -21,6 +22,7 @@ from delivery import (
     InvalidRecipient,
     deliver_clip,
 )
+from video_analysis import analyze_video_info
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -407,6 +409,42 @@ def load():
         return jsonify(error=f"Laden mislukt: {e}"), 500
     save_meta(duration)
     return jsonify(job=job, mode="preview", duration=duration, video=f"/media/{job}/{prev.name}")
+
+
+@app.post("/api/analyze-comments")
+def analyze_comments():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error="Geef een geldige YouTube-videolink op."), 400
+    url = payload.get("url", "")
+    if not isinstance(url, str):
+        return jsonify(error="Geef een geldige YouTube-videolink op."), 400
+    url = url.strip()
+    try:
+        parsed_url = urlsplit(url)
+    except ValueError:
+        return jsonify(error="Gebruik een geldige YouTube-videolink."), 400
+    if parsed_url.scheme not in ("http", "https") or parsed_url.hostname not in {
+        "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
+        "youtu.be", "youtube-nocookie.com",
+    }:
+        return jsonify(error="Gebruik een geldige YouTube-videolink."), 400
+
+    try:
+        output = ytdlp(
+            "--dump-single-json",
+            "--write-comments",
+            "--extractor-args", "youtube:max_comments=1000",
+            url,
+        )
+        result = analyze_video_info(json.loads(output))
+    except RuntimeError as exc:
+        return jsonify(error=f"YouTube-data ophalen mislukt: {exc}"), 502
+    except json.JSONDecodeError:
+        return jsonify(error="YouTube gaf onleesbare videogegevens terug."), 502
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 422
+    return jsonify(result)
 
 
 @app.post("/api/logo")
