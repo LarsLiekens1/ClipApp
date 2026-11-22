@@ -1,5 +1,7 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import app as clipapp
@@ -47,6 +49,33 @@ class VideoAnalysisTests(unittest.TestCase):
         self.assertEqual(result["bins"][124]["comment_mentions"], 1)
         self.assertTrue(all(item["viewer_score"] is None for item in result["bins"]))
 
+    def test_returns_timestamped_comments_for_caption_generation(self):
+        result = analyze_video_info({
+            "duration": 120,
+            "comments": [
+                {"text": "Great moment at 0:30!", "like_count": 8},
+                {"text": "Also at 1:00", "like_count": "3"},
+                {"text": "No timestamp here", "like_count": 100},
+            ],
+            "heatmap": [],
+        })
+
+        self.assertEqual(result["caption_comments"], [
+            {"timestamps": [30], "text": "Great moment at 0:30!", "like_count": 8},
+            {"timestamps": [60], "text": "Also at 1:00", "like_count": 3},
+        ])
+
+    def test_caption_ass_uses_selected_position_and_sanitizes_ass_markup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "caption.ass"
+            clipapp.write_caption_ass(
+                path, r"Look {here}: \secret", 30, 1080, 1920, "center"
+            )
+            content = path.read_text(encoding="utf-8")
+
+        self.assertIn(",3,8,1,5,60,60,0,1", content)
+        self.assertIn("Look (here): /secret", content)
+
     def test_analysis_route_fetches_youtube_comments_and_rejects_other_hosts(self):
         client = clipapp.app.test_client()
         output = json.dumps({
@@ -67,6 +96,7 @@ class VideoAnalysisTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["timestamp_mentions"], 1)
+        self.assertEqual(response.json["caption_comments"][0]["timestamps"], [30])
         self.assertEqual(rejected.status_code, 400)
         fetch.assert_called_once_with(
             "--dump-single-json",

@@ -746,6 +746,7 @@
     background: rgba(17, 24, 39, 0.95);
     box-shadow: 0 0 16px rgba(99, 102, 241, 0.1);
   }
+  #group-caption[hidden] { display: none; }
 
   /* Main Toggle Header */
   .opt-main-toggle {
@@ -1184,6 +1185,25 @@
               <input type="file" id="logo" accept="image/png,image/jpeg,image/webp" disabled>
             </div>
           </div>
+
+          <div class="opt-group" id="group-caption" hidden>
+            <label class="opt-main-toggle" for="caption-toggle">
+              <input type="checkbox" id="caption-toggle">
+              <div class="opt-toggle-content">
+                <span class="opt-toggle-title" data-i18n="caption_title">Caption uit comments</span>
+                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruik de best gewaardeerde comment met een timestamp in de clip. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
+              </div>
+            </label>
+            <div class="opt-sub-row disabled" id="caption-position-row">
+              <label for="caption-position" data-i18n="caption_position">Positie caption:</label>
+              <select id="caption-position" disabled>
+                <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
+                <option value="top" data-i18n="caption_top">Bovenin de video</option>
+                <option value="center" data-i18n="caption_center">Midden in beeld</option>
+                <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1241,6 +1261,15 @@ const I18N = {
     vert_desc: "Ideaal voor TikTok, Shorts & Reels",
     vert_blur: "Geblurde achtergrond (i.p.v. zwarte balken)",
     vert_logo: "Logo onder de ondertitels:",
+    caption_title: "Caption uit comments",
+    caption_desc: "Gebruik de best gewaardeerde comment met een timestamp in de clip. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.",
+    caption_position: "Positie caption:",
+    caption_above: "Boven de video (bovenste balk)",
+    caption_top: "Bovenin de video",
+    caption_center: "Midden in beeld",
+    caption_bottom: "Onderaan de video",
+    err_caption_analysis: "Analyseer eerst de YouTube-comments om captions te genereren.",
+    msg_done_caption_missing: "{count} clip(s) gemaakt; voor {missing} clip(s) was geen passende comment met timestamp gevonden, dus die hebben geen caption.",
     btn_render: "Clips maken & exporteren",
     results_title: "Gegenereerde Clips",
     btn_preview: "Bekijk",
@@ -1327,6 +1356,15 @@ const I18N = {
     vert_desc: "Ideal for TikTok, Shorts & Reels",
     vert_blur: "Blurred background (instead of black bars)",
     vert_logo: "Logo below subtitles:",
+    caption_title: "Caption from comments",
+    caption_desc: "Use the highest-rated comment with a timestamp in the clip. For a blurred area above the video, also choose 9:16 and blurred background.",
+    caption_position: "Caption position:",
+    caption_above: "Above the video (top margin)",
+    caption_top: "Top of the video",
+    caption_center: "Center of the frame",
+    caption_bottom: "Bottom of the video",
+    err_caption_analysis: "Analyze the YouTube comments first to generate captions.",
+    msg_done_caption_missing: "{count} clip(s) created; no matching timestamp comment was found for {missing}, so those clips have no caption.",
     btn_render: "Generate & Export Clips",
     results_title: "Generated Clips",
     btn_preview: "Preview",
@@ -1529,6 +1567,23 @@ function fmtHeatmapScore(score) {
   });
 }
 
+function captionForRange(data, start, end) {
+  const comments = data && Array.isArray(data.caption_comments) ? data.caption_comments : [];
+  const matches = comments.filter(comment =>
+    Array.isArray(comment.timestamps)
+      && comment.timestamps.some(timestamp => timestamp >= start && timestamp < end)
+  ).sort((a, b) => (b.like_count || 0) - (a.like_count || 0));
+  for (const comment of matches) {
+    const text = String(comment.text || '')
+      .replace(/(^|[^\d:])(?:\d{1,3}:)?\d{1,3}:[0-5]\d(?![\d:])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s:;,.\-–—]+|[\s:;,.\-–—]+$/g, '')
+      .trim();
+    if (text) return text.length > 220 ? `${text.slice(0, 217).trimEnd()}...` : text;
+  }
+  return '';
+}
+
 function generateClipSuggestions(data, requestedCount, requestedDuration, existingSegments) {
   const totalDuration = Number(data.duration);
   const clipDuration = Math.min(totalDuration, requestedDuration);
@@ -1572,7 +1627,11 @@ function generateClipSuggestions(data, requestedCount, requestedDuration, existi
     const start = Math.max(0, Math.min(center - clipDuration / 2, totalDuration - clipDuration));
     const end = start + clipDuration;
     if (occupied.some(segment => start < segment.end && end > segment.start)) continue;
-    const suggestion = { start, end };
+    const suggestion = {
+      start,
+      end,
+      caption: captionForRange(data, candidate.bin.start, candidate.bin.end),
+    };
     suggestions.push(suggestion);
     occupied.push(suggestion);
     if (suggestions.length >= requestedCount) break;
@@ -1840,6 +1899,18 @@ function updateVerticalState() {
 }
 vertCheck.addEventListener('change', updateVerticalState);
 
+const captionToggle = $('#caption-toggle');
+const captionPosition = $('#caption-position');
+const captionPositionRow = $('#caption-position-row');
+const groupCaption = $('#group-caption');
+
+function updateCaptionState() {
+  captionPosition.disabled = !captionToggle.checked;
+  captionPositionRow.classList.toggle('disabled', !captionToggle.checked);
+  groupCaption.classList.toggle('active', captionToggle.checked);
+}
+captionToggle.addEventListener('change', updateCaptionState);
+
 $('#add').onclick = () => {
   const start = parse($('#start').value), end = parse($('#end').value);
   if (isNaN(start) || isNaN(end)) return setStatus(t('err_times'), true);
@@ -1864,10 +1935,13 @@ $('#load-form').addEventListener('submit', async e => {
     stopPreviewTracking();
     analysisData = null;
     suggestionMessage = null;
+    captionToggle.checked = false;
+    updateCaptionState();
     $('#comment-analysis-results').hidden = true;
     $('#comment-analysis-status').textContent = '';
     $('#analysis-suggestion-status').textContent = '';
     $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
+    groupCaption.hidden = data.mode !== 'youtube';
     player.pause();
     $('#editor').hidden = false;
     $('#results').hidden = true;
@@ -1935,6 +2009,21 @@ $('#generate-suggestions-btn').onclick = () => {
 
 // --- clips maken ---
 $('#render-btn').onclick = async () => {
+  const captionsEnabled = captionToggle.checked;
+  if (captionsEnabled && !analysisData) {
+    setStatus(t('err_caption_analysis'), true);
+    return;
+  }
+  const renderSegments = segments.map(segment => ({
+    start: segment.start,
+    end: segment.end,
+    caption: captionsEnabled
+      ? (segment.caption || captionForRange(analysisData, segment.start, segment.end))
+      : '',
+  }));
+  const missingCaptions = captionsEnabled
+    ? renderSegments.filter(segment => !segment.caption).length
+    : 0;
   const btn = $('#render-btn');
   btn.disabled = true;
   setStatus($('#subs').checked
@@ -1953,12 +2042,13 @@ $('#render-btn').onclick = async () => {
       hasLogo = true;
     }
     const data = await api('/api/render', {
-      job, segments: segments.map(({ start, end }) => ({ start, end })),
+      job, segments: renderSegments,
       subtitles: $('#subs').checked,
       language: $('#lang').value,
       vertical: $('#vertical').checked,
       blur: $('#blur').checked,
       logo: hasLogo,
+      caption_position: captionPosition.value,
     });
     const box = $('#clips');
     box.innerHTML = '';
@@ -2017,7 +2107,9 @@ $('#render-btn').onclick = async () => {
       box.appendChild(fig);
     });
     $('#results').hidden = false;
-    setStatus(t('msg_done', { count: data.clips.length }));
+    setStatus(missingCaptions
+      ? t('msg_done_caption_missing', { count: data.clips.length, missing: missingCaptions })
+      : t('msg_done', { count: data.clips.length }));
     $('#results').scrollIntoView({ behavior: 'smooth' });
   } catch (err) {
     setStatus(err.message, true);
