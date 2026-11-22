@@ -257,13 +257,21 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
             t += 5.0
 
     max_mentions = max((_audience(bins, a, b)[0] for a, b, _ in spans), default=0.0)
+
+    def loud(start, end):
+        mean_e, peak_e = _range_mean(energy, start, end)
+        return max(0.0, mean_e / med_energy - 1), max(0.0, peak_e / med_energy - 1)
+
+    loud_raw = [loud(a, b) for a, b, _ in spans] if energy else []
+    max_loud_mean = max((m for m, _ in loud_raw), default=0.0) or 1.0
+    max_loud_peak = max((p for _, p in loud_raw), default=0.0) or 1.0
     has = {
         "hook": bool(sentences), "tempo": bool(sentences), "emotion": bool(sentences),
         "energy": bool(energy), "audience": max_mentions > 0 or max_view > min_view,
     }
 
     scored = []
-    for start, end, sents in spans:
+    for idx, (start, end, sents) in enumerate(spans):
         length = max(0.5, end - start)
         text = " ".join(s["text"] for s in sents)
         features, notes = {}, []
@@ -283,9 +291,8 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
             if features["emotion"] >= 0.6:
                 notes.append("veel emotie")
         if energy:
-            mean_e, peak_e = _range_mean(energy, start, end)
-            features["energy"] = (0.5 * _clamp(mean_e / med_energy - 1)
-                                  + 0.5 * _clamp((peak_e / med_energy - 1) / 2))
+            raw_mean, raw_peak = loud_raw[idx]
+            features["energy"] = 0.7 * raw_mean / max_loud_mean + 0.3 * raw_peak / max_loud_peak
             if features["energy"] >= 0.5:
                 notes.append("luid/energiek moment")
         if has["audience"]:
@@ -323,7 +330,10 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
 
     # --- beste niet-overlappende clips kiezen ---
     chosen = []
+    best = max((c["score"] for c in scored), default=0.0)
     for c in sorted(scored, key=lambda c: -c["score"]):
+        if chosen and c["score"] < 0.25 * best:      # rest is veel zwakker: liever minder clips
+            break
         if any(c["start"] < o["end"] + MIN_SPACING and c["end"] > o["start"] - MIN_SPACING
                for o in chosen):
             continue
