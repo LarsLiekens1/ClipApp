@@ -748,6 +748,7 @@
   }
   #group-caption[hidden] { display: none; }
   .auto-box { border-color: var(--primary, #7c3aed); }
+  .auto-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.5rem; }
   .auto-check { display: flex; align-items: center; gap: 0.5rem; flex-direction: row; }
   .segment-caption {
     width: 100%; margin-top: 0.4rem; font-size: 0.85rem;
@@ -1050,10 +1051,11 @@
         </label>
         <label class="auto-check" for="auto-export">
           <input type="checkbox" id="auto-export" checked>
-          <span data-i18n="auto_export">Meteen exporteren als TikTok (9:16, blur, ondertitels, caption)</span>
+          <span data-i18n="auto_export">Meteen exporteren met de opties hieronder</span>
         </label>
         <button type="button" class="primary" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
       </div>
+      <p class="auto-hint" data-i18n="auto_hint">Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.</p>
       <p id="auto-status" role="status" aria-live="polite"></p>
     </div>
 
@@ -1360,9 +1362,10 @@ const I18N = {
     err_logo_upload: "Logo uploaden mislukt.",
     auto_title: "✨ Automatisch TikToks maken",
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
-    auto_export: "Meteen exporteren als TikTok (9:16, blur, ondertitels, caption)",
+    auto_export: "Meteen exporteren met de opties hieronder",
+    auto_hint: "Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.",
     auto_button: "Maak TikToks",
-    auto_working: "Video wordt getranscribeerd en geanalyseerd op de beste momenten. Bij lange video's kan dit enkele minuten duren...",
+    auto_working: "Video wordt geanalyseerd op de beste momenten. Bij lange video's kan dit enkele minuten duren...",
     auto_done: "{count} voorstel(len) toegevoegd. Pas de captions aan als je wilt en exporteer.",
     auto_done_exporting: "{count} voorstel(len) gevonden, de TikToks worden nu gemaakt...",
     segment_auto: "auto",
@@ -1466,9 +1469,10 @@ const I18N = {
     err_logo_upload: "Failed to upload logo.",
     auto_title: "✨ Make TikToks automatically",
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
-    auto_export: "Export as TikTok right away (9:16, blur, subtitles, caption)",
+    auto_export: "Export right away with the options below",
+    auto_hint: "Tip: turn on 'Create subtitles' for smarter picks based on what is said (uses Whisper). Without subtitles the app picks on loudness and comments.",
     auto_button: "Make TikToks",
-    auto_working: "Transcribing and analysing the video for the best moments. Long videos can take a few minutes...",
+    auto_working: "Analysing the video for the best moments. Long videos can take a few minutes...",
     auto_done: "Added {count} suggestion(s). Edit the captions if you like, then export.",
     auto_done_exporting: "Found {count} suggestion(s), creating the TikToks now...",
     segment_auto: "auto",
@@ -2099,6 +2103,7 @@ $('#auto-btn').onclick = async () => {
       min_len: minLen,
       max_len: maxLen,
       language: $('#lang').value,
+      speech: subsCheck.checked,
       bins: analysisData && Array.isArray(analysisData.bins) ? analysisData.bins : null,
       comments: analysisData && Array.isArray(analysisData.caption_comments)
         ? analysisData.caption_comments : null,
@@ -2116,15 +2121,9 @@ $('#auto-btn').onclick = async () => {
         auto: true,
       }));
     segments = [...manualSegments, ...aiSegments].sort((a, b) => a.start - b.start);
-    captionToggle.checked = true;
-    updateCaptionState();
     renderSegments();
     if ($('#auto-export').checked && aiSegments.length) {
       $('#auto-status').textContent = t('auto_done_exporting', { count: aiSegments.length });
-      subsCheck.checked = true; updateSubsState();
-      vertCheck.checked = true; updateVerticalState();
-      $('#blur').checked = true;
-      captionPosition.value = 'above';
       $('#render-btn').click();
     } else {
       $('#auto-status').textContent = t('auto_done', { count: aiSegments.length });
@@ -2140,7 +2139,7 @@ $('#auto-btn').onclick = async () => {
 // --- clips maken ---
 $('#render-btn').onclick = async () => {
   const captionsEnabled = captionToggle.checked;
-  if (captionsEnabled && !analysisData && segments.some(segment => !segment.caption)) {
+  if (captionsEnabled && !analysisData && segments.some(segment => !segment.caption && !segment.auto)) {
     setStatus(t('err_caption_analysis'), true);
     return;
   }

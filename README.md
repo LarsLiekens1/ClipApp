@@ -115,15 +115,15 @@ De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de 
 
 Laad een video en klik bovenaan op **Maak TikToks**. Alles draait lokaal en is gratis; er is geen API-sleutel nodig.
 
-1. Whisper transcribeert de hele video en de app meet de luidheid per seconde. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
-2. Elke mogelijke clip begint op een zinsbegin en eindigt op een zinseinde (standaard **5 clips van 20–60 seconden**). Per clip telt de app:
+1. De app meet de luidheid per seconde. Alleen als **Ondertitels maken** aanstaat, transcribeert Whisper ook de hele video; anders wordt Whisper niet geladen of gedownload. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
+2. Met spraakherkenning begint elke mogelijke clip op een zinsbegin en eindigt hij op een zinseinde (standaard **5 clips van 20–60 seconden**). Zonder spraakherkenning kiest de app op luidheid, comments en heatmap, en komt de caption alleen uit comments. Per clip telt de app:
    - **hook**: begint de clip met een vraag, uitroep, getal of typische hook-woorden (“waarom”, “niemand”, “geheim”, “wait”, …)?
    - **energie**: is het geluid luider dan normaal in de video (lachen, roepen)?
    - **tempo** en **emotie**: wordt er snel gesproken, vallen er woorden als “haha” of “wow”?
    - **publiek**: comment-timestamps en de YouTube-heatmap, als je eerst de commentanalyse hebt gedraaid.
    - strafpunten voor lange stiltes en voor clips die midden in een gedachte beginnen (“en…”, “maar…”).
 3. Per clip krijg je een **caption** (de sterkste hook-zin, of een populaire comment), een **posttekst met hashtags** uit de typische woorden van die clip, een score en de reden van de keuze. De captions kun je in de lijst aanpassen.
-4. Met **Meteen exporteren als TikTok** (standaard aan) worden de clips direct gemaakt in 9:16 met geblurde achtergrond, ondertitels en de caption in de bovenste balk. Bij elke clip staat de posttekst met een kopieerknop en als `.txt`-download.
+4. Met **Meteen exporteren** (standaard aan) worden de clips direct gemaakt met de opties die jij hebt aangevinkt (ondertitels, 9:16, blur, caption); de app verandert zelf niets aan je keuzes. Bij elke clip staat de posttekst met een kopieerknop en als `.txt`-download.
 
 ### Comments, heatmap en clipvoorstellen
 

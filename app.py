@@ -476,43 +476,55 @@ def analyze_comments():
     return jsonify(result)
 
 
-def full_transcript(d, url, language):
-    """Transcribeer de hele video één keer en meet de luidheid per seconde.
+def analyze_audio(d, url, language, speech):
+    """Meet de luidheid per seconde en (alleen als speech=True) transcribeer met Whisper.
+    Zonder speech wordt Whisper niet geladen of gedownload.
     Het resultaat wordt bewaard in transcript.json, dus een tweede keer is direct klaar.
-    Geeft (cues, energy) terug."""
+    Geeft (cues, energy) terug; cues is [] zonder speech."""
     cache = d / "transcript.json"
+    saved = {}
     if cache.exists():
         saved = json.loads(cache.read_text(encoding="utf-8"))
-        if saved.get("language") == (language or "") and "energy" in saved:
-            return saved["cues"], saved["energy"]
+    has_energy = "energy" in saved
+    has_cues = saved.get("cues") is not None and saved.get("language") == (language or "")
+    if has_energy and (has_cues or not speech):
+        return (saved["cues"] if speech else []), saved["energy"]
+
     source = find_file(d, "preview")             # andere sites: de preview staat al lokaal
     audio = None
+    total = 3 if speech else 2
     try:
         if not source:
-            t = step(1, 2, "Audio van de hele video ophalen...")
+            t = step(1, total, "Audio van de hele video ophalen...")
             ytdlp("-f", "bestaudio/best", "-o", str(d / "audio_full.%(ext)s"), url)
             audio = next((f for f in sorted(d.glob("audio_full.*"))), None)
             if not audio:
                 raise RuntimeError("de audio kon niet worden opgehaald")
             source = audio
             step_done(t)
-        t = step(2, 2, "Hele video transcriberen (Whisper)... dit kan even duren")
+        t = step(2, total, "Luidheid meten...")
         wav = d / "full.wav"
         run(["ffmpeg", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000",
              "-c:a", "pcm_s16le", str(wav)])
         try:
             energy = loudness_per_second(read_wav(wav))
-            cues = transcribe(wav, language, show_bar)
+            step_done(t)
+            cues = saved.get("cues") if has_cues else None
+            if speech and cues is None:
+                t = step(3, total, "Hele video transcriberen (Whisper)... dit kan even duren")
+                cues = transcribe(wav, language, show_bar)
+                end_bar()
+                step_done(t)
         finally:
             wav.unlink(missing_ok=True)
-        end_bar()
-        step_done(t)
     finally:
         if audio:
             audio.unlink(missing_ok=True)
-    cache.write_text(json.dumps({"language": language or "", "cues": cues, "energy": energy}),
-                     encoding="utf-8")
-    return cues, energy
+    data = {"energy": energy}
+    if cues is not None:
+        data.update(language=language or "", cues=cues)
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    return (cues if speech else []), energy
 
 
 @app.post("/api/auto-clips")
@@ -537,11 +549,13 @@ def auto_clips():
         return jsonify(error="Ongeldige taal."), 400
     bins = data.get("bins") if isinstance(data.get("bins"), list) else None
     comments = data.get("comments") if isinstance(data.get("comments"), list) else None
+    speech = bool(data.get("speech"))
 
     t_all = time.time()
-    log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s) ===")
+    log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s, "
+        f"{'met' if speech else 'zonder'} spraakherkenning) ===")
     try:
-        cues, energy = full_transcript(d, meta["url"], language)
+        cues, energy = analyze_audio(d, meta["url"], language, speech)
         clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
                               bins=bins, comments=comments, energy=energy)
     except AutoClipError as e:

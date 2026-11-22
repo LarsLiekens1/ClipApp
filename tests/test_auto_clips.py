@@ -82,7 +82,7 @@ class SuggestClipsTests(unittest.TestCase):
         energy = [0.1] * 100
         energy[70:80] = [0.9] * 10
         clips = suggest_clips([], 100, count=1, min_len=20, max_len=30, energy=energy)
-        self.assertTrue(clips[0]["start"] <= 70 < clips[0]["end"])
+        self.assertTrue(clips[0]["start"] <= 70 and clips[0]["end"] >= 80)
 
     def test_errors_without_any_signal(self):
         with self.assertRaises(AutoClipError):
