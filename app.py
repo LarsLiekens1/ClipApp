@@ -23,6 +23,7 @@ from delivery import (
     deliver_clip,
 )
 from video_analysis import analyze_video_info
+from ai_clips import AI_MODEL, AIClipError, suggest_clips
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -475,6 +476,81 @@ def analyze_comments():
     return jsonify(result)
 
 
+def full_transcript(d, url, language):
+    """Transcribeer de hele video één keer en bewaar het resultaat in transcript.json."""
+    cache = d / "transcript.json"
+    if cache.exists():
+        saved = json.loads(cache.read_text(encoding="utf-8"))
+        if saved.get("language") == (language or ""):
+            return saved["cues"]
+    source = find_file(d, "preview")             # andere sites: de preview staat al lokaal
+    audio = None
+    try:
+        if not source:
+            t = step(1, 2, "Audio van de hele video ophalen...")
+            ytdlp("-f", "bestaudio/best", "-o", str(d / "audio_full.%(ext)s"), url)
+            audio = next((f for f in sorted(d.glob("audio_full.*"))), None)
+            if not audio:
+                raise RuntimeError("de audio kon niet worden opgehaald")
+            source = audio
+            step_done(t)
+        t = step(2, 2, "Hele video transcriberen (Whisper)... dit kan even duren")
+        wav = d / "full.wav"
+        run(["ffmpeg", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000",
+             "-c:a", "pcm_s16le", str(wav)])
+        try:
+            cues = transcribe(wav, language, show_bar)
+        finally:
+            wav.unlink(missing_ok=True)
+        end_bar()
+        step_done(t)
+    finally:
+        if audio:
+            audio.unlink(missing_ok=True)
+    cache.write_text(json.dumps({"language": language or "", "cues": cues}), encoding="utf-8")
+    return cues
+
+
+@app.post("/api/auto-clips")
+def auto_clips():
+    """Laat de AI de beste TikTok-momenten kiezen, met hook-caption en posttekst."""
+    data = request.get_json(silent=True) or {}
+    d = job_dir(str(data.get("job", "")))
+    try:
+        meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return jsonify(error="Deze video moet opnieuw geladen worden."), 404
+    try:
+        count = int(data.get("count", 5))
+        min_len = float(data.get("min_len", 20))
+        max_len = float(data.get("max_len", 60))
+    except (TypeError, ValueError):
+        return jsonify(error="Ongeldige instellingen voor de clips."), 400
+    if not (1 <= count <= 10 and 5 <= min_len <= max_len <= 180):
+        return jsonify(error="Ongeldige instellingen voor de clips."), 400
+    language = data.get("language") or None
+    if language not in (None, "nl", "en", "fr", "de"):
+        return jsonify(error="Ongeldige taal."), 400
+    bins = data.get("bins") if isinstance(data.get("bins"), list) else None
+
+    t_all = time.time()
+    log(f"=== Automatische TikToks: transcript + AI ({count} clips, {min_len:.0f}-{max_len:.0f} s) ===")
+    try:
+        cues = full_transcript(d, meta["url"], language)
+        t = step(1, 1, f"AI kiest de beste momenten ({AI_MODEL})...")
+        clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
+                              bins=bins, caption_language=language)
+        step_done(t)
+    except AIClipError as e:
+        log(f"MISLUKT: {e}")
+        return jsonify(error=str(e)), 502
+    except Exception as e:
+        log(f"MISLUKT: {e}")
+        return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
+    log(f"AI KLAAR: {len(clips)} voorstel(len) in {time.time() - t_all:.0f} s.")
+    return jsonify(clips=clips)
+
+
 @app.post("/api/logo")
 def upload_logo():
     """Sla een logo op bij een job. Het komt later in de verticale clip onder de ondertitels."""
@@ -582,6 +658,13 @@ def render():
             if not isinstance(caption, str):
                 raise ValueError(f"Caption van stuk {i} is ongeldig.")
             caption = caption.strip()
+            post_text = seg.get("post_text", "")
+            if not isinstance(post_text, str):
+                raise ValueError(f"Posttekst van stuk {i} is ongeldig.")
+            post_file = d / f"{name}.txt"
+            post_file.unlink(missing_ok=True)
+            if post_text.strip():
+                post_file.write_text(post_text.strip()[:2200] + "\n", encoding="utf-8")
 
             n_steps = 3 if subs else 2                # ophalen, (ondertitels), renderen
             t_clip = time.time()
@@ -691,7 +774,9 @@ def render():
 
             clips.append({"name": f"{name}.mp4",
                           "url": f"/media/{d.name}/{name}.mp4",
-                          "srt": f"/media/{d.name}/{name}.srt" if srt.exists() else None})
+                          "srt": f"/media/{d.name}/{name}.srt" if srt.exists() else None,
+                          "post_text": post_text.strip()[:2200] or None,
+                          "txt": f"/media/{d.name}/{name}.txt" if post_file.exists() else None})
             log(f"=== Clip {i} klaar: {name}.mp4 (totaal {time.time() - t_clip:.0f} s) ===")
     except Exception as e:
         log(f"MISLUKT: {e}")
