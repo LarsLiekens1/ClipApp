@@ -363,6 +363,48 @@
     margin-top: 2px;
     font-size: 1.25rem;
   }
+  .analysis-table-title {
+    margin: 20px 0 4px;
+    font-size: 1rem;
+  }
+  .analysis-table-description {
+    margin: 0 0 10px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+  .analysis-table-wrap {
+    max-height: 360px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  #analysis-data-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  #analysis-data-table th,
+  #analysis-data-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #analysis-data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-align: left;
+  }
+  #analysis-data-table .numeric {
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+  #analysis-data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
   #comment-analysis-chart {
     display: block;
     width: 100%;
@@ -955,11 +997,33 @@
             <span data-i18n="analysis_comments_label">Geanalyseerde comments</span>
             <strong id="analysis-comments-value">0</strong>
           </div>
+          <div class="analysis-stat">
+            <span data-i18n="analysis_peak_comments_label">Interval met meeste timestamps</span>
+            <strong id="analysis-peak-comments-value">—</strong>
+          </div>
+          <div class="analysis-stat">
+            <span data-i18n="analysis_peak_viewers_label">Hoogste heatmapscore (relatief)</span>
+            <strong id="analysis-peak-viewers-value">—</strong>
+          </div>
         </div>
         <svg id="comment-analysis-chart" viewBox="0 0 960 320" role="img"></svg>
         <div class="analysis-legend">
           <span><i class="mentions-key"></i><span data-i18n="analysis_legend_mentions">Tijdstempels in comments</span></span>
           <span><i class="viewers-key"></i><span data-i18n="analysis_legend_viewers">Kijkersheatmap (relatief)</span></span>
+        </div>
+        <h3 class="analysis-table-title" data-i18n="analysis_table_title">Exacte cijfers per interval</h3>
+        <p class="analysis-table-description" id="analysis-table-description"></p>
+        <div class="analysis-table-wrap">
+          <table id="analysis-data-table">
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="analysis_table_interval">Video-interval</th>
+                <th scope="col" class="numeric" data-i18n="analysis_table_mentions">Timestamps genoemd</th>
+                <th scope="col" class="numeric" data-i18n="analysis_table_score">Heatmapscore (relatief)</th>
+              </tr>
+            </thead>
+            <tbody id="analysis-data-rows"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1127,11 +1191,20 @@ const I18N = {
     analysis_loading: "YouTube-comments en kijkersheatmap ophalen...",
     analysis_mentions_label: "Tijdstempelvermeldingen",
     analysis_comments_label: "Geanalyseerde comments",
+    analysis_peak_comments_label: "Interval met meeste timestamps",
+    analysis_peak_viewers_label: "Hoogste heatmapscore (relatief)",
     analysis_legend_mentions: "Tijdstempels in comments",
     analysis_legend_viewers: "Kijkersheatmap (relatief)",
     analysis_no_timestamps: "Er zijn geen tijdstempels in de opgehaalde comments gevonden.",
     analysis_no_heatmap: "YouTube heeft voor deze video geen kijkersheatmap beschikbaar.",
-    analysis_peaks: "Meeste genoemde tijdstempels: {comments}. Meeste kijkersinteresse: {viewers}.",
+    analysis_peaks: "Meeste timestamps: {comments} ({count} vermeldingen). Hoogste heatmapscore: {viewers} ({score}, relatief).",
+    analysis_peak_comments_value: "{interval} ({count})",
+    analysis_peak_viewers_value: "{interval} ({score})",
+    analysis_table_title: "Exacte cijfers per interval",
+    analysis_table_description: "Elke rij beslaat {seconds} seconden. De heatmapscore is relatief, geen exact aantal kijkers.",
+    analysis_table_interval: "Video-interval",
+    analysis_table_mentions: "Timestamps genoemd",
+    analysis_table_score: "Heatmapscore (relatief)",
     analysis_chart_label: "Grafiek van genoemde tijdstempels en relatieve kijkersinteresse per videomoment.",
     msg_searching: "Video wordt opgezocht...",
     msg_loaded: "Video geladen ({duration}). Selecteer nu de stukken.",
@@ -1195,11 +1268,20 @@ const I18N = {
     analysis_loading: "Fetching YouTube comments and viewer heatmap...",
     analysis_mentions_label: "Timestamp mentions",
     analysis_comments_label: "Comments analyzed",
+    analysis_peak_comments_label: "Interval with most timestamps",
+    analysis_peak_viewers_label: "Highest heatmap score (relative)",
     analysis_legend_mentions: "Timestamps in comments",
     analysis_legend_viewers: "Viewer heatmap (relative)",
     analysis_no_timestamps: "No timestamps were found in the retrieved comments.",
     analysis_no_heatmap: "YouTube does not provide a viewer heatmap for this video.",
-    analysis_peaks: "Most-mentioned timestamps: {comments}. Highest viewer interest: {viewers}.",
+    analysis_peaks: "Most timestamps: {comments} ({count} mentions). Highest heatmap score: {viewers} ({score}, relative).",
+    analysis_peak_comments_value: "{interval} ({count})",
+    analysis_peak_viewers_value: "{interval} ({score})",
+    analysis_table_title: "Exact figures per interval",
+    analysis_table_description: "Each row covers {seconds} seconds. The heatmap score is relative, not an exact viewer count.",
+    analysis_table_interval: "Video interval",
+    analysis_table_mentions: "Timestamps mentioned",
+    analysis_table_score: "Heatmap score (relative)",
     analysis_chart_label: "Chart of mentioned timestamps and relative viewer interest across the video.",
     msg_searching: "Searching for video...",
     msg_loaded: "Video loaded ({duration}). Select your clips now.",
@@ -1319,14 +1401,22 @@ function fmtChartTime(seconds) {
     : `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
+function fmtHeatmapScore(score) {
+  return Number(score.toPrecision(6)).toLocaleString(currentLang, {
+    maximumSignificantDigits: 6,
+  });
+}
+
 function renderAnalysis(data) {
   analysisData = data;
   const results = $('#comment-analysis-results');
   const chart = $('#comment-analysis-chart');
   const status = $('#comment-analysis-status');
+  const rows = $('#analysis-data-rows');
   $('#analysis-mentions-value').textContent = data.timestamp_mentions.toLocaleString(currentLang);
   $('#analysis-comments-value').textContent = data.comment_count.toLocaleString(currentLang);
   chart.replaceChildren();
+  rows.replaceChildren();
 
   const bins = data.bins || [];
   const hasMentions = bins.some(bin => bin.comment_mentions > 0);
@@ -1348,14 +1438,49 @@ function renderAnalysis(data) {
     (best, bin) => bin.viewer_score > (best ? best.viewer_score : -Infinity) ? bin : best,
     null
   );
+  const commentPeakValue = commentPeak
+    ? t('analysis_peak_comments_value', {
+      interval: `${fmtChartTime(commentPeak.start)}–${fmtChartTime(commentPeak.end)}`,
+      count: commentPeak.comment_mentions.toLocaleString(currentLang),
+    })
+    : '—';
+  const viewerPeakValue = viewerPeak
+    ? t('analysis_peak_viewers_value', {
+      interval: `${fmtChartTime(viewerPeak.start)}–${fmtChartTime(viewerPeak.end)}`,
+      score: fmtHeatmapScore(viewerPeak.viewer_score),
+    })
+    : '—';
+  $('#analysis-peak-comments-value').textContent = commentPeakValue;
+  $('#analysis-peak-viewers-value').textContent = viewerPeakValue;
+  $('#analysis-table-description').textContent = t('analysis_table_description', {
+    seconds: data.bin_seconds,
+  });
   if (commentPeak && viewerPeak) {
     messages.push(t('analysis_peaks', {
       comments: `${fmtChartTime(commentPeak.start)}–${fmtChartTime(commentPeak.end)}`,
       viewers: `${fmtChartTime(viewerPeak.start)}–${fmtChartTime(viewerPeak.end)}`,
+      count: commentPeak.comment_mentions.toLocaleString(currentLang),
+      score: fmtHeatmapScore(viewerPeak.viewer_score),
     }));
   }
   status.textContent = messages.join(' ');
   if (!bins.length) return;
+
+  bins.forEach(bin => {
+    const row = document.createElement('tr');
+    const values = [
+      `${fmtChartTime(bin.start)}–${fmtChartTime(bin.end)}`,
+      bin.comment_mentions.toLocaleString(currentLang),
+      Number.isFinite(bin.viewer_score) ? fmtHeatmapScore(bin.viewer_score) : '—',
+    ];
+    values.forEach((value, index) => {
+      const cell = document.createElement('td');
+      if (index > 0) cell.className = 'numeric';
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    rows.appendChild(row);
+  });
 
   const ns = 'http://www.w3.org/2000/svg';
   const add = (name, attrs, text) => {
