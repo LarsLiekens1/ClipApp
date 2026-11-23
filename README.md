@@ -243,8 +243,8 @@ Of, op macOS en Linux:
 | Bestand of map | Doel |
 | --- | --- |
 | `app.py` | Flask-server, API-routes en media-export |
-| `index.html` | Interface voor de URL-clipper en commentanalyse |
-| `editor.html` | Interface voor de tijdlijneditor |
+| `index.html`, `static/clipper.*` | Interface (HTML, CSS, JS) voor de URL-clipper, commentanalyse en TikTok-maker |
+| `editor.html`, `static/editor.*` | Interface (HTML, CSS, JS) voor de tijdlijneditor |
 | `auto_clips.py` | Automatische keuze van TikTok-momenten, captions en hashtags |
 | `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |
 | `delivery.py` | Optionele Gmail- en Drive-integratie |
