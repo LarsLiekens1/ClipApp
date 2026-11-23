@@ -395,21 +395,21 @@ def ass_time(t):
 
 
 def make_cues(words):
-    """Groepeer woorden tot korte ondertitels: [[start, einde, tekst], ...]."""
+    """Groepeer woorden [[start, einde, woord], ...] tot korte ondertitels: [[start, einde, tekst], ...]."""
     cues, cur = [], []
 
     def flush():
         if cur:
-            cues.append([cur[0].start, cur[-1].end, "".join(w.word for w in cur).strip()])
+            cues.append([cur[0][0], cur[-1][1], "".join(w[2] for w in cur).strip()])
             cur.clear()
 
     for w in words:
-        text = ("".join(x.word for x in cur) + w.word).strip()
-        pauze = bool(cur) and (w.start - cur[-1].end) > 0.6      # spreker pauzeert even
+        text = ("".join(x[2] for x in cur) + w[2]).strip()
+        pauze = bool(cur) and (w[0] - cur[-1][1]) > 0.6           # spreker pauzeert even
         if cur and (len(cur) >= MAX_WORDS or len(text) > MAX_CHARS or pauze):
             flush()
         cur.append(w)
-        if w.word.strip().endswith((".", "!", "?", ",")):         # einde zin of komma: nieuw stukje
+        if w[2].strip().endswith((".", "!", "?", ",")):           # einde zin of komma: nieuw stukje
             flush()
     flush()
 
@@ -529,6 +529,11 @@ def get_model(name=None):
 
 def transcribe(wav, language, on_progress=None, model_name=None):
     """Zet spraak om naar korte ondertitelstukjes met faster-whisper (draait lokaal)."""
+    return make_cues(transcribe_words(wav, language, on_progress, model_name))
+
+
+def transcribe_words(wav, language, on_progress=None, model_name=None):
+    """Zet spraak om naar losse woorden met tijden: [[start, einde, woord], ...]."""
     audio = read_wav(wav)
     total = len(audio) / 16000                 # lengte van de audio in seconden
     words = []
@@ -538,10 +543,31 @@ def transcribe(wav, language, on_progress=None, model_name=None):
         segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True)
         for s in segments:                     # de segmenten komen een voor een binnen
             check_cancel()
-            words.extend(s.words or [])
+            words.extend([round(w.start, 3), round(w.end, 3), w.word] for w in (s.words or []))
             if on_progress and total:
                 on_progress(s.end / total)
-    return make_cues(words)
+    return words
+
+
+def cached_words(d, language, model_name):
+    """Woorden uit het opgeslagen transcript van de hele video, als taal en model kloppen."""
+    cache = d / "transcript.json"
+    if not cache.exists():
+        return None
+    try:
+        saved = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (saved.get("words") is None or saved.get("language") != (language or "")
+            or saved.get("model", WHISPER_MODEL) != (model_name or WHISPER_MODEL)):
+        return None
+    return saved["words"]
+
+
+def words_between(words, start, end):
+    """Woorden binnen [start, end], met tijden vanaf het begin van de clip."""
+    return [[max(0.0, s - start), min(e, end) - start, w]
+            for s, e, w in words if e > start and s < end]
 
 
 def job_lock(d):
@@ -810,9 +836,11 @@ def analyze_audio(d, url, language, speech, model_name=None):
             energy = loudness_per_second(read_wav(wav))
             step_done(t)
             cues = saved.get("cues") if has_cues else None
+            words = saved.get("words") if has_cues else None
             if speech and cues is None:
                 t = step(3, total, "Hele video transcriberen (Whisper)... dit kan even duren")
-                cues = transcribe(wav, language, show_bar, model_name)
+                words = transcribe_words(wav, language, show_bar, model_name)
+                cues = make_cues(words)
                 end_bar()
                 step_done(t)
         finally:
@@ -823,6 +851,8 @@ def analyze_audio(d, url, language, speech, model_name=None):
     data = {"energy": energy}
     if cues is not None:
         data.update(language=language or "", cues=cues, model=model_name)
+        if words is not None:
+            data["words"] = words
     cache.write_text(json.dumps(data), encoding="utf-8")
     return (cues if speech else []), energy
 
@@ -978,6 +1008,7 @@ def render_job(data):
         return jsonify(error="Ongeldige positie voor de caption."), 400
     if use_logo and not logo_file:
         return jsonify(error="Het logo is niet gevonden. Kies het logo opnieuw."), 400
+    full_words = cached_words(d, language, model_name) if subs else None
     clips = []
     wanted = data.get("segments", [])
     t_all = time.time()
@@ -1053,7 +1084,11 @@ def render_job(data):
                     if 1920 - bottom >= 300:              # genoeg zwart eronder: tekst begint daar
                         top = round(bottom) + 50
 
-                if subs:
+                if subs and full_words is not None:
+                    # de hele video is al getranscribeerd (TikTok-maker): stuk eruit knippen
+                    t = step(2, n_steps, "Ondertitels uit het opgeslagen transcript...")
+                    cues = make_cues(words_between(full_words, start, end))
+                elif subs:
                     # geluid van dit stuk eruit halen en transcriberen
                     t = step(2, n_steps, "Ondertitels maken (Whisper)...")
                     wav = d / f"{name}.wav"
@@ -1063,6 +1098,7 @@ def render_job(data):
                         cues = transcribe(wav, language, show_bar, model_name)
                     finally:
                         wav.unlink(missing_ok=True)            # opruimen, ook als het misgaat
+                if subs:
                     if cues:                                    # geen spraak = geen ondertitels
                         write_srt(srt, cues)
                         write_ass(ass, cues, out_w, out_h, top)
