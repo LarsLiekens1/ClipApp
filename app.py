@@ -26,6 +26,7 @@ from delivery import (
 )
 from video_analysis import analyze_video_info
 from auto_clips import AutoClipError, loudness_per_second, suggest_clips
+from face_crop import face_crop_filter
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -1225,6 +1226,7 @@ def render_job(data):
     sub_color = data.get("sub_color") or "yellow"
     sub_upper = bool(data.get("sub_upper", True))
     jump_cuts = bool(data.get("jump_cuts"))
+    face_crop = vertical and bool(data.get("face_crop"))
     if sub_style not in ("classic", "tiktok") or sub_color not in SUB_COLORS:
         return jsonify(error="Ongeldige stijl voor de ondertitels."), 400
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
@@ -1298,7 +1300,18 @@ def render_job(data):
                 caption_filter = None
                 vid_bottom = None                     # onderkant van de video in het eindbeeld (9:16)
                 out_w, out_h, top = sw, sh, None      # maat van het eindbeeld + waar de tekst komt
-                if vertical:
+                crop = None
+                if face_crop:
+                    t = step(1, n_steps, "Gezicht zoeken voor de 9:16-crop...")
+                    crop = face_crop_filter(part, duration_of(part), sw, sh)
+                    if not crop:
+                        log("Geen duidelijk gezicht gevonden; " +
+                            ("geblurde achtergrond" if blur else "zwarte balken") + " gebruikt.")
+                    step_done(t)
+                if vertical and crop:
+                    out_w, out_h = 1080, 1920
+                    filters.append(crop)                  # beeld vult het hele scherm
+                elif vertical:
                     out_w, out_h = 1080, 1920
                     # hele video in beeld houden: verkleinen tot hij past
                     fit = "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2"

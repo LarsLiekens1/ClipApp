@@ -148,6 +148,7 @@ Na de commentanalyse kun je bij het clip-exporteren **Caption bovenin** inschake
 - **Stiltes eruit knippen:** pauzes van meer dan ~0,6 seconde worden uit de clip geknipt (jump cuts), met een klein beetje marge zodat woorden niet worden afgekapt. De ondertitels schuiven automatisch mee.
 - **Verticaal 9:16:** maak een formaat voor bijvoorbeeld Shorts of Reels.
 - **Geblurde achtergrond:** vul de verticale beeldruimte met een vervaagde versie van de video.
+- **Volg het gezicht:** in plaats van balken of blur wordt het beeld ingezoomd tot het het hele 9:16-scherm vult, met het gezicht in beeld. De app kijkt elke 2 seconden waar het gezicht staat (lokaal met OpenCV) en stuurt alleen bij als het duidelijk verschuift. Staat er geen duidelijk gezicht in, dan valt hij terug op blur of balken.
 - **Logo:** voeg bij verticale clips een PNG-, JPG- of WebP-logo toe.
 - Je gekozen opties (ook die van de TikTok-maker) worden in je browser onthouden voor de volgende keer.
 
@@ -247,6 +248,7 @@ Of, op macOS en Linux:
 | `app.py` | Flask-server, API-routes en media-export |
 | `index.html`, `static/clipper.*` | Interface (HTML, CSS, JS) voor de URL-clipper, commentanalyse en TikTok-maker |
 | `editor.html`, `static/editor.*` | Interface (HTML, CSS, JS) voor de tijdlijneditor |
+| `face_crop.py` | Gezichtsdetectie voor de 9:16-crop die het gezicht volgt |
 | `auto_clips.py` | Automatische keuze van TikTok-momenten, captions en hashtags |
 | `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |
 | `delivery.py` | Optionele Gmail- en Drive-integratie |
