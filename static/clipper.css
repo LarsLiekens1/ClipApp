@@ -743,6 +743,18 @@
   #sub-style-row { flex-wrap: wrap; gap: 8px; }
   .analysis-chat-option { margin: 4px 0 12px; font-size: 0.85rem; }
   .inline-check { display: inline-flex; align-items: center; gap: 6px; }
+  .batch-box { margin: 0 0 24px; padding: 14px 18px; border-radius: 14px;
+    border: 1px solid var(--border, rgba(127,127,127,.3)); }
+  .batch-box summary { cursor: pointer; font-weight: 700; }
+  .batch-box p { font-size: 0.88rem; color: var(--text-secondary); }
+  .batch-box textarea { width: 100%; box-sizing: border-box; font-family: inherit; padding: 10px;
+    border-radius: 10px; margin-top: 6px; }
+  .auto-option label:not(.auto-check) { display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.8rem; font-weight: 600; }
+  .batch-video { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border, rgba(127,127,127,.25)); }
+  .batch-video h3 { margin: 0 0 6px; font-size: 0.95rem; }
+  .batch-video .error { color: #f87171; }
+  .batch-clip { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-size: 0.85rem; margin: 4px 0; }
   .local-upload { display: flex; justify-content: center; margin-top: 12px; }
   .local-upload-btn {
     display: inline-flex; align-items: center; gap: 8px; cursor: pointer;

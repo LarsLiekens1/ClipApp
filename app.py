@@ -125,13 +125,15 @@ class Task:
         self.title = ""                  # bv. "Clip 2 van 5 (1:20 tot 1:50, 30 s)"
         self.step = ""                   # bv. "Stap 2/3  Ondertitels maken (Whisper)..."
         self.progress = None             # 0..1 van de huidige stap, of None
+        self.prefix = ""                 # bv. "Video 2 van 5" bij batch
         self.result = None
         self.error = None
         self.cancel = threading.Event()
         self.finished = None
 
     def as_dict(self):
-        return {"id": self.id, "kind": self.kind, "status": self.status, "title": self.title,
+        title = f"{self.prefix} · {self.title}" if self.prefix and self.title else (self.prefix or self.title)
+        return {"id": self.id, "kind": self.kind, "status": self.status, "title": title,
                 "step": self.step, "progress": self.progress, "result": self.result,
                 "error": self.error}
 
@@ -857,6 +859,83 @@ def run_job(d, kind, fn, data):
     return jsonify(task=task.id), 202
 
 
+# ---------- batch: meerdere video's achter elkaar ----------
+
+BATCH_RENDER_KEYS = ("subtitles", "language", "whisper_model", "sub_style", "sub_color", "sub_upper",
+                     "jump_cuts", "face_crop", "vertical", "blur", "caption_position")
+
+
+def process_video(source, options):
+    """Eén video volledig automatisch: laden, beste momenten kiezen en clips maken.
+    `source` is een link of een pad naar een bestand. Geeft een samenvatting terug."""
+    is_url = str(source).startswith(("http://", "https://"))
+    body, status = load_url(str(source)) if is_url else load_file(source)
+    if status >= 400:
+        return {"source": str(source), "error": body.get("error")}
+    job = body["job"]
+    summary = {"source": str(source), "job": job, "title": body.get("title") or str(source)}
+
+    auto = {"job": job, "count": options.get("count", 5),
+            "min_len": options.get("min_len", 20), "max_len": options.get("max_len", 60),
+            "language": options.get("language"), "whisper_model": options.get("whisper_model"),
+            "youtube_subs": options.get("youtube_subs", True),
+            "speech": bool(options.get("subtitles"))}
+    body, status = _response_parts(auto_clips_job(auto))
+    if status >= 400:
+        return {**summary, "error": body.get("error")}
+    picks = body["clips"]
+
+    segments = [{
+        "start": c["start"], "end": c["end"],
+        "caption": c["caption"] if options.get("caption") else "",
+        "post_text": "\n\n".join(x for x in (c["description"], " ".join(c["hashtags"])) if x),
+    } for c in picks]
+    render = {"job": job, "segments": segments,
+              **{k: options[k] for k in BATCH_RENDER_KEYS if k in options}}
+    body, status = _response_parts(render_job(render))
+    if status >= 400:
+        return {**summary, "error": body.get("error")}
+    for clip, pick in zip(body["clips"], picks):
+        clip.update(caption=pick["caption"], score=pick["score"], reason=pick["reason"])
+    return {**summary, "clips": body["clips"]}
+
+
+def batch_job(data):
+    sources = [str(s).strip() for s in data.get("sources") or [] if str(s).strip()]
+    task = current_task()
+    results = []
+    for k, source in enumerate(sources, 1):
+        check_cancel()
+        if task:
+            task.prefix = f"Video {k} van {len(sources)}"
+        log(f"=== Batch: video {k} van {len(sources)}: {source} ===")
+        try:
+            results.append(process_video(source, data.get("options") or {}))
+        except TaskCancelled:
+            raise
+        except Exception as e:                   # één kapotte link stopt de rest niet
+            log(f"MISLUKT: {e}")
+            results.append({"source": source, "error": str(e)})
+    done = sum(1 for r in results if not r.get("error"))
+    log(f"ALLES KLAAR: batch met {len(sources)} video('s), {done} gelukt.")
+    return jsonify(results=results)
+
+
+@app.post("/api/batch")
+def batch():
+    """Meerdere links achter elkaar automatisch tot TikToks verwerken (altijd op de achtergrond)."""
+    data = request.get_json(silent=True) or {}
+    sources = data.get("sources")
+    if not isinstance(sources, list) or not any(str(s).strip() for s in sources):
+        return jsonify(error="Geef minstens één videolink op."), 400
+    if any(not str(s).strip().startswith(("http://", "https://")) for s in sources if str(s).strip()):
+        return jsonify(error="Elke regel moet een link zijn die met http of https begint."), 400
+    if len(sources) > 50:
+        return jsonify(error="Maximaal 50 links per batch."), 400
+    # één batch tegelijk (het lock hoort bij de naam "batch", er komt geen map)
+    return run_job(WORK / "batch", "batch", batch_job, {**data, "background": True})
+
+
 @app.get("/api/tasks/<task_id>")
 def task_status(task_id):
     task = _tasks.get(task_id)
@@ -893,12 +972,20 @@ def index():
 def load():
     """Haal alleen informatie over de video op (duur, soort site). Er wordt niets groots gedownload."""
     url = (request.get_json(silent=True) or {}).get("url", "").strip()
+    body, status = load_url(url)
+    return jsonify(body), status
+
+
+def load_url(url):
+    """Maak een taak voor een videolink. Geeft (antwoord, statuscode) terug."""
     if not url.startswith(("http://", "https://")):
-        return jsonify(error="Geef een geldige link op (begint met http of https)."), 400
+        return {"error": "Geef een geldige link op (begint met http of https)."}, 400
     try:
         info = json.loads(ytdlp("-J", url))               # -J = alleen info, geen download
+    except TaskCancelled:
+        raise
     except Exception as e:
-        return jsonify(error=f"Laden mislukt: {e}"), 500
+        return {"error": f"Laden mislukt: {e}"}, 500
 
     duration = info.get("duration")
     job = uuid.uuid4().hex[:12]
@@ -914,10 +1001,11 @@ def load():
 
     if info.get("extractor_key") == "Youtube":
         if not duration:
-            return jsonify(error="Laden mislukt: kon de lengte van de video niet bepalen (livestream?)"), 500
+            return {"error": "Laden mislukt: kon de lengte van de video niet bepalen (livestream?)"}, 500
         # YouTube spelen we in de pagina zelf af: dan hoeft er niets gedownload te worden
         save_meta(duration)
-        return jsonify(job=job, mode="youtube", id=info["id"], duration=duration)
+        return {"job": job, "mode": "youtube", "id": info["id"], "duration": duration,
+                "title": info.get("title")}, 200
 
     # andere sites: een kleine preview in lage kwaliteit, alleen om in te kunnen kijken en spoelen
     try:
@@ -927,10 +1015,13 @@ def load():
         if not prev:
             raise RuntimeError("geen preview gevonden na het downloaden")
         duration = duration or duration_of(prev)          # veel sites geven zelf geen duur op
+    except TaskCancelled:
+        raise
     except Exception as e:
-        return jsonify(error=f"Laden mislukt: {e}"), 500
+        return {"error": f"Laden mislukt: {e}"}, 500
     save_meta(duration)
-    return jsonify(job=job, mode="preview", duration=duration, video=f"/media/{job}/{prev.name}")
+    return {"job": job, "mode": "preview", "duration": duration,
+            "video": f"/media/{job}/{prev.name}", "title": info.get("title")}, 200
 
 
 @app.post("/api/upload-video")
@@ -947,16 +1038,37 @@ def upload_video():
     d.mkdir()
     path = d / f"source{ext}"
     f.save(path)
+    body, status = register_local_video(d, path, Path(f.filename).name)
+    return jsonify(body), status
+
+
+def load_file(src):
+    """Maak een taak voor een videobestand op deze computer (kopie in work/)."""
+    src = Path(src)
+    ext = src.suffix.lower()
+    if ext not in VIDEO_EXT:
+        return {"error": f"{src.name}: gebruik een MP4-, MOV-, MKV-, WebM- of M4V-bestand."}, 400
+    job = uuid.uuid4().hex[:12]
+    d = WORK / job
+    d.mkdir()
+    path = d / f"source{ext}"
+    shutil.copyfile(src, path)
+    return register_local_video(d, path, src.name)
+
+
+def register_local_video(d, path, name):
+    """Controleer een opgeslagen videobestand, maak zo nodig een preview en schrijf meta.json."""
+    job, ext = d.name, path.suffix.lower()
     try:
         info = probe_media(path)
         if info["kind"] != "video":
             raise ValueError("geen beeld")
     except Exception:
         shutil.rmtree(d, ignore_errors=True)
-        return jsonify(error="Dit bestand kan ik niet lezen als video."), 400
+        return {"error": "Dit bestand kan ik niet lezen als video."}, 400
     preview = path
     if ext not in PLAYABLE_EXT:                        # browser kan mov/mkv vaak niet afspelen
-        log(f"Preview maken voor {Path(f.filename).name}...")
+        log(f"Preview maken voor {name}...")
         preview = d / "preview.mp4"
         try:
             run(["ffmpeg", "-y", "-i", str(path), "-vf", "scale=-2:360", "-c:v", "libx264",
@@ -964,14 +1076,14 @@ def upload_video():
                  "-movflags", "+faststart", str(preview)])
         except RuntimeError as e:
             shutil.rmtree(d, ignore_errors=True)
-            return jsonify(error=f"Preview maken mislukt: {e}"), 500
+            return {"error": f"Preview maken mislukt: {e}"}, 500
     (d / "meta.json").write_text(json.dumps({
-        "url": None, "local": path.name, "name": Path(f.filename).name,
+        "url": None, "local": path.name, "name": name,
         "duration": info["duration"],
     }), encoding="utf-8")
-    log(f"Eigen video geladen: {Path(f.filename).name} ({mmss(info['duration'])})")
-    return jsonify(job=job, mode="preview", duration=info["duration"],
-                   video=f"/media/{job}/{preview.name}")
+    log(f"Eigen video geladen: {name} ({mmss(info['duration'])})")
+    return {"job": job, "mode": "preview", "duration": info["duration"],
+            "video": f"/media/{job}/{preview.name}", "title": Path(name).stem}, 200
 
 
 def fetch_chat_offsets(url):

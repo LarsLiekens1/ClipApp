@@ -67,6 +67,36 @@
 
   <p id="status" role="status" aria-live="polite"></p>
 
+  <details class="batch-box" id="batch-panel">
+    <summary data-i18n="batch_title">📦 Batch: meerdere video's in één keer</summary>
+    <p data-i18n="batch_desc">Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.</p>
+    <textarea id="batch-urls" rows="5" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=..." aria-label="Links, één per regel" data-i18n-aria-label="batch_urls_label"></textarea>
+    <div class="auto-options">
+      <div class="auto-option">
+        <label><span data-i18n="analysis_suggestion_count">Aantal clips</span>
+          <select data-link="#auto-count">
+            <option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="10">10</option>
+          </select>
+        </label>
+      </div>
+      <div class="auto-option">
+        <label><span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+          <select data-link="#auto-length">
+            <option value="15-30">15–30 s</option><option value="20-60">20–60 s</option><option value="45-90">45–90 s</option>
+          </select>
+        </label>
+      </div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#subs"><span data-i18n="subs_title">Ondertitels maken</span></label></div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#vertical"><span data-i18n="vert_title">Verticaal 9:16 formaat</span></label></div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#blur"><span data-i18n="auto_blur">Geblurde achtergrond</span></label></div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#face-crop"><span data-i18n="auto_face">Volg het gezicht</span></label></div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#caption-toggle"><span data-i18n="auto_caption">Caption bovenin</span></label></div>
+      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#jump-cuts"><span data-i18n="jump_title">Stiltes eruit knippen</span></label></div>
+    </div>
+    <button type="button" class="primary auto-go" id="batch-btn" data-i18n="batch_button">Start batch</button>
+    <div id="batch-results"></div>
+  </details>
+
   <section id="editor" hidden>
     <div class="analysis-box auto-box" id="auto-panel">
       <h2 data-i18n="auto_title">✨ Automatisch TikToks maken</h2>

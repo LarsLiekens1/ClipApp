@@ -125,6 +125,21 @@ Laad een video en klik bovenaan op **Maak TikToks**. Alles draait lokaal en is g
 3. Per clip krijg je een **caption** (de sterkste hook-zin, of een populaire comment), een **posttekst met hashtags** uit de typische woorden van die clip, een score en de reden van de keuze. De captions kun je in de lijst aanpassen.
 4. Met **Meteen exporteren** (standaard aan) worden de clips direct gemaakt met de opties die jij hebt aangevinkt (ondertitels, 9:16, blur, caption); de app verandert zelf niets aan je keuzes. Bij elke clip staat de posttekst met een kopieerknop en als `.txt`-download.
 
+### Batch: meerdere video's in één keer
+
+**In de browser:** open bovenaan **📦 Batch**, plak één link per regel en klik op **Start batch**. Elke video wordt na elkaar geanalyseerd en omgezet in TikToks met dezelfde instellingen als de TikTok-maker. Per video zie je daarna de clips met downloadlinks.
+
+**Zonder browser** (handig om te automatiseren) gebruik je `batch.py`:
+
+```text
+python batch.py https://www.youtube.com/watch?v=...            # één link
+python batch.py links.txt --count 3 --subs --caption            # één link per regel
+python batch.py "C:\Video's\opnames" --face --jump-cuts        # alle video's in een map
+python batch.py "C:\Video's\inbox" --watch                     # map blijven bewaken
+```
+
+De clips en hun posttekst (`.txt`) komen in `clips_output/` (of `--out`). Met `--watch` wordt elke nieuwe video in de map automatisch verwerkt zodra hij klaar is met kopiëren. `python batch.py --help` toont alle opties.
+
 ### Comments, heatmap en clipvoorstellen
 
 De analysefunctie is bedoeld voor YouTube-video's. ClipAPP vraagt maximaal **1.000 comments** op en telt herkenbare tijdstempels in de commenttekst, zoals `1:23` en `1:02:03`. De tijdlijn wordt in intervallen ingedeeld; bij lange video's worden die intervallen groter.
@@ -250,6 +265,7 @@ Of, op macOS en Linux:
 | `app.py` | Flask-server, API-routes en media-export |
 | `index.html`, `static/clipper.*` | Interface (HTML, CSS, JS) voor de URL-clipper, commentanalyse en TikTok-maker |
 | `editor.html`, `static/editor.*` | Interface (HTML, CSS, JS) voor de tijdlijneditor |
+| `batch.py` | Opdrachtregel: links, bestanden of een map automatisch tot TikToks verwerken |
 | `face_crop.py` | Gezichtsdetectie voor de 9:16-crop die het gezicht volgt |
 | `auto_clips.py` | Automatische keuze van TikTok-momenten, captions en hashtags |
 | `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |

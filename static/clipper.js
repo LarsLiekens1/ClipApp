@@ -108,6 +108,13 @@ const I18N = {
     analysis_chat_peak: "Drukste moment in de live-chat: {interval} ({count} van {total} berichten; oranje stippellijn).",
     analysis_chat_empty: "De live-chat bevatte geen berichten.",
     analysis_chat_not_stream: "Dit is geen afgelopen livestream, dus er is geen live-chat om te analyseren.",
+    batch_title: "📦 Batch: meerdere video's in één keer",
+    batch_desc: "Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.",
+    batch_urls_label: "Links, één per regel",
+    batch_button: "Start batch",
+    batch_empty: "Plak eerst minstens één link.",
+    batch_running: "Batch gestart met {count} video('s)...",
+    batch_done: "Batch klaar: {ok} van {count} video('s) gelukt.",
     jump_title: "Stiltes eruit knippen",
     jump_desc: "Jump cuts: pauzes in de clip worden automatisch weggeknipt voor een sneller tempo",
     subs_style_label: "Stijl:",
@@ -245,6 +252,13 @@ const I18N = {
     analysis_chat_peak: "Busiest live chat moment: {interval} ({count} of {total} messages; orange dashed line).",
     analysis_chat_empty: "The live chat had no messages.",
     analysis_chat_not_stream: "This is not a finished livestream, so there is no live chat to analyse.",
+    batch_title: "📦 Batch: several videos at once",
+    batch_desc: "Paste one link per line. Each video is analysed automatically and turned into TikToks with the settings below. You can't export anything else meanwhile.",
+    batch_urls_label: "Links, one per line",
+    batch_button: "Start batch",
+    batch_empty: "Paste at least one link first.",
+    batch_running: "Batch started with {count} video(s)...",
+    batch_done: "Batch done: {ok} of {count} video(s) succeeded.",
     jump_title: "Cut out silences",
     jump_desc: "Jump cuts: pauses in the clip are removed automatically for a faster pace",
     subs_style_label: "Style:",
@@ -835,7 +849,7 @@ function updateCaptionState() {
 captionToggle.addEventListener('change', updateCaptionState);
 
 // Het TikTok-paneel heeft eigen knoppen die gekoppeld zijn aan de opties onderaan.
-const autoLinks = [...document.querySelectorAll('#auto-panel [data-link]')]
+const autoLinks = [...document.querySelectorAll('[data-link]')]
   .map(el => ({ el, target: $(el.dataset.link) }));
 
 function syncAutoOptions() {
@@ -996,6 +1010,75 @@ $('#generate-suggestions-btn').onclick = () => {
     : 'analysis_suggestions_added_plural';
   setSuggestionStatus(key, { count: suggestions.length });
   $('#segments').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+// --- batch: meerdere links achter elkaar ---
+function batchOptions() {
+  const [minLen, maxLen] = $('#auto-length').value.split('-').map(Number);
+  return {
+    count: Number($('#auto-count').value), min_len: minLen, max_len: maxLen,
+    subtitles: subsCheck.checked, language: $('#lang').value,
+    whisper_model: $('#whisper-model').value, youtube_subs: $('#youtube-subs').checked,
+    sub_style: $('#sub-style').value, sub_color: $('#sub-color').value,
+    sub_upper: $('#sub-upper').checked, jump_cuts: $('#jump-cuts').checked,
+    face_crop: $('#face-crop').checked, vertical: $('#vertical').checked,
+    blur: $('#blur').checked, caption: captionToggle.checked,
+    caption_position: captionPosition.value,
+  };
+}
+
+function renderBatchResults(results) {
+  const box = $('#batch-results');
+  box.replaceChildren();
+  for (const video of results) {
+    const block = document.createElement('div');
+    block.className = 'batch-video';
+    const title = document.createElement('h3');
+    title.textContent = video.title || video.source;
+    block.appendChild(title);
+    if (video.error) {
+      const err = document.createElement('p');
+      err.className = 'error';
+      err.textContent = video.error;
+      block.appendChild(err);
+    }
+    for (const clip of video.clips || []) {
+      const row = document.createElement('div');
+      row.className = 'batch-clip';
+      const mp4 = document.createElement('a');
+      mp4.href = clip.url; mp4.download = `${video.job}_${clip.name}`; mp4.textContent = clip.name;
+      row.appendChild(mp4);
+      if (clip.txt) {
+        const txt = document.createElement('a');
+        txt.href = clip.txt; txt.download = `${video.job}_${clip.name.replace('.mp4', '.txt')}`;
+        txt.textContent = 'TXT';
+        row.appendChild(txt);
+      }
+      const info = document.createElement('span');
+      info.textContent = [clip.score ? `${clip.score}/100` : '', clip.caption || ''].filter(Boolean).join(' · ');
+      row.appendChild(info);
+      block.appendChild(row);
+    }
+    box.appendChild(block);
+  }
+}
+
+$('#batch-btn').onclick = async () => {
+  const sources = $('#batch-urls').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!sources.length) return setStatus(t('batch_empty'), true);
+  const btn = $('#batch-btn');
+  btn.disabled = true;
+  setStatus(t('batch_running', { count: sources.length }));
+  try {
+    const data = await runTask('/api/batch', { sources, options: batchOptions() });
+    renderBatchResults(data.results || []);
+    const ok = (data.results || []).filter(r => !r.error).length;
+    setStatus(t('batch_done', { ok, count: sources.length }));
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 };
 
 // --- automatisch TikToks maken ---
