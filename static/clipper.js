@@ -101,6 +101,16 @@ const I18N = {
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
     btn_upload_video: "Of kies een video van je computer",
+    subs_style_label: "Stijl:",
+    subs_color_label: "Kleur",
+    opt_style_tiktok: "TikTok (woord voor woord)",
+    opt_style_classic: "Klassiek (wit)",
+    opt_color_yellow: "Geel",
+    opt_color_green: "Groen",
+    opt_color_cyan: "Cyaan",
+    opt_color_pink: "Roze",
+    opt_color_white: "Wit",
+    subs_upper: "HOOFDLETTERS",
     subs_youtube: "TikTok-maker: gebruik de ondertitels van YouTube zelf als die er zijn (veel sneller dan Whisper)",
     msg_uploading: "Video uploaden... {pct}%",
     msg_preparing: "Video voorbereiden...",
@@ -219,6 +229,16 @@ const I18N = {
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
     btn_upload_video: "Or choose a video from your computer",
+    subs_style_label: "Style:",
+    subs_color_label: "Color",
+    opt_style_tiktok: "TikTok (word by word)",
+    opt_style_classic: "Classic (white)",
+    opt_color_yellow: "Yellow",
+    opt_color_green: "Green",
+    opt_color_cyan: "Cyan",
+    opt_color_pink: "Pink",
+    opt_color_white: "White",
+    subs_upper: "UPPERCASE",
     subs_youtube: "TikTok maker: use YouTube's own subtitles when available (much faster than Whisper)",
     msg_uploading: "Uploading video... {pct}%",
     msg_preparing: "Preparing video...",
@@ -720,9 +740,14 @@ function updateSubsState() {
   subLangRow.classList.toggle('disabled', !subsCheck.checked);
   $('#whisper-model').disabled = !subsCheck.checked;
   $('#sub-model-row').classList.toggle('disabled', !subsCheck.checked);
+  $('#sub-style').disabled = !subsCheck.checked;
+  $('#sub-upper').disabled = !subsCheck.checked;
+  $('#sub-color').disabled = !subsCheck.checked || $('#sub-style').value !== 'tiktok';
+  $('#sub-style-row').classList.toggle('disabled', !subsCheck.checked);
   groupSubs.classList.toggle('active', subsCheck.checked);
 }
 subsCheck.addEventListener('change', updateSubsState);
+$('#sub-style').addEventListener('change', updateSubsState);
 
 const vertCheck = $('#vertical');
 const blurCheck = $('#blur');
@@ -1004,6 +1029,9 @@ $('#render-btn').onclick = async () => {
       subtitles: $('#subs').checked,
       language: $('#lang').value,
       whisper_model: $('#whisper-model').value,
+      sub_style: $('#sub-style').value,
+      sub_color: $('#sub-color').value,
+      sub_upper: $('#sub-upper').checked,
       vertical: $('#vertical').checked,
       blur: $('#blur').checked,
       logo: hasLogo,
@@ -1104,7 +1132,7 @@ $('#render-btn').onclick = async () => {
 // --- instellingen onthouden (alleen in deze browser) ---
 const SETTINGS_KEY = 'clipapp_settings';
 // volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
-const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#youtube-subs', '#vertical', '#blur', '#caption-toggle', '#caption-position',
+const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#youtube-subs', '#sub-style', '#sub-color', '#sub-upper', '#vertical', '#blur', '#caption-toggle', '#caption-position',
   '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
 
 function saveSettings() {
@@ -1124,7 +1152,7 @@ function restoreSettings() {
     if (!el || !(sel in values)) continue;
     if (el.type === 'checkbox') el.checked = Boolean(values[sel]);
     else if ([...el.options].some(o => o.value === values[sel])) el.value = values[sel];
-    if (sel === '#subs') updateSubsState();
+    if (sel === '#subs' || sel === '#sub-style') updateSubsState();
     if (sel === '#vertical') updateVerticalState();
   }
   updateVerticalState();               // blur uit als 9:16 uit staat

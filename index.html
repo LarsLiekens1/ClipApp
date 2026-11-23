@@ -294,6 +294,24 @@
               <option value="medium" data-i18n="opt_model_medium">Nauwkeurigst, traag (medium)</option>
             </select>
           </div>
+          <div class="opt-sub-row disabled" id="sub-style-row">
+            <label for="sub-style" data-i18n="subs_style_label">Stijl:</label>
+            <select id="sub-style" disabled>
+              <option value="tiktok" data-i18n="opt_style_tiktok">TikTok (woord voor woord)</option>
+              <option value="classic" data-i18n="opt_style_classic">Klassiek (wit)</option>
+            </select>
+            <select id="sub-color" disabled aria-label="Kleur" data-i18n-aria-label="subs_color_label">
+              <option value="yellow" data-i18n="opt_color_yellow">Geel</option>
+              <option value="green" data-i18n="opt_color_green">Groen</option>
+              <option value="cyan" data-i18n="opt_color_cyan">Cyaan</option>
+              <option value="pink" data-i18n="opt_color_pink">Roze</option>
+              <option value="white" data-i18n="opt_color_white">Wit</option>
+            </select>
+            <label class="inline-check" for="sub-upper">
+              <input type="checkbox" id="sub-upper" checked disabled>
+              <span data-i18n="subs_upper">HOOFDLETTERS</span>
+            </label>
+          </div>
           <label class="opt-sub-toggle" for="youtube-subs" id="youtube-subs-row">
             <input type="checkbox" id="youtube-subs" checked>
             <span data-i18n="subs_youtube">TikTok-maker: gebruik de ondertitels van YouTube zelf als die er zijn (veel sneller dan Whisper)</span>

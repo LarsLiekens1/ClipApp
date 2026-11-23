@@ -739,6 +739,8 @@
   #group-caption[hidden] { display: none; }
   .auto-box { border-color: var(--primary, #7c3aed); }
   .auto-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.5rem; }
+  #sub-style-row { flex-wrap: wrap; gap: 8px; }
+  .inline-check { display: inline-flex; align-items: center; gap: 6px; }
   .local-upload { display: flex; justify-content: center; margin-top: 12px; }
   .local-upload-btn {
     display: inline-flex; align-items: center; gap: 8px; cursor: pointer;

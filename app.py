@@ -396,11 +396,16 @@ def ass_time(t):
 
 def make_cues(words):
     """Groepeer woorden [[start, einde, woord], ...] tot korte ondertitels: [[start, einde, tekst], ...]."""
+    return [[a, b, "".join(w[2] for w in ws).strip()] for a, b, ws in group_words(words)]
+
+
+def group_words(words):
+    """Zelfde groepering als make_cues, maar met de losse woorden erbij: [[start, einde, woorden], ...]."""
     cues, cur = [], []
 
     def flush():
         if cur:
-            cues.append([cur[0][0], cur[-1][1], "".join(w[2] for w in cur).strip()])
+            cues.append([cur[0][0], cur[-1][1], list(cur)])
             cur.clear()
 
     for w in words:
@@ -452,6 +457,55 @@ def write_ass(path, cues, w, h, top=None):
         for a, b, text in cues:
             text = text.replace("{", "(").replace("}", ")")      # accolades zijn opmaakcodes in .ass
             f.write(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Default,,0,0,0,,{text}\n")
+
+
+SUB_COLORS = {                 # ASS-kleuren zijn blauw-groen-rood (BBGGRR)
+    "yellow": "00E5FF", "green": "5AF254", "cyan": "F2E600",
+    "pink": "B469FF", "white": "FFFFFF",
+}
+
+
+def subtitle_size(style, w, h):
+    return round(min(w, h) * (0.085 if style == "tiktok" else 0.065))
+
+
+def _ass_text(text):
+    return text.replace("\\", "/").replace("{", "(").replace("}", ")")
+
+
+def write_tiktok_ass(path, groups, w, h, top=None, color="yellow", upper=True):
+    """TikTok-stijl: grote vette letters, dikke rand, het woord dat gezegd wordt licht op
+    in de gekozen kleur en is iets groter."""
+    size = subtitle_size("tiktok", w, h)
+    highlight = SUB_COLORS.get(color, SUB_COLORS["yellow"])
+    if top is not None:
+        align, margin_v = 8, top
+    else:
+        align, margin_v = 2, round(h * 0.14)       # iets hoger: onderin zitten TikTok-knoppen
+    header = (
+        "[Script Info]\nScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\nWrapStyle: 0\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: TikTok,Arial Black,{size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+        f"-1,0,0,0,100,100,1,0,1,{max(4, size // 9)},3,{align},70,70,{margin_v},1\n\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(header)
+        for g_start, g_end, ws in groups:
+            tokens = [_ass_text(w[2].strip().upper() if upper else w[2].strip()) for w in ws]
+            for k, w in enumerate(ws):
+                a = g_start if k == 0 else w[0]
+                b = ws[k + 1][0] if k + 1 < len(ws) else g_end
+                if b <= a:
+                    continue
+                line = " ".join(
+                    (f"{{\\c&H{highlight}&\\fscx112\\fscy112}}{tok}{{\\r}}" if i == k else tok)
+                    for i, tok in enumerate(tokens))
+                f.write(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},TikTok,,0,0,0,,{line}\n")
 
 
 def write_caption_ass(path, text, duration, w, h, position):
@@ -1081,6 +1135,11 @@ def render_job(data):
         model_name = whisper_model_from(data)
     except ValueError as e:
         return jsonify(error=str(e)), 400
+    sub_style = data.get("sub_style") or "classic"
+    sub_color = data.get("sub_color") or "yellow"
+    sub_upper = bool(data.get("sub_upper", True))
+    if sub_style not in ("classic", "tiktok") or sub_color not in SUB_COLORS:
+        return jsonify(error="Ongeldige stijl voor de ondertitels."), 400
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
     logo_file = find_logo(d) if use_logo else None
     caption_position = data.get("caption_position", "above")
@@ -1167,7 +1226,7 @@ def render_job(data):
                 if subs and full_words is not None:
                     # de hele video is al getranscribeerd (TikTok-maker): stuk eruit knippen
                     t = step(2, n_steps, "Ondertitels uit het opgeslagen transcript...")
-                    cues = make_cues(words_between(full_words, start, end))
+                    clip_words = words_between(full_words, start, end)
                 elif subs:
                     # geluid van dit stuk eruit halen en transcriberen
                     t = step(2, n_steps, "Ondertitels maken (Whisper)...")
@@ -1175,13 +1234,18 @@ def render_job(data):
                     run(["ffmpeg", "-y", "-i", str(part), "-vn", "-ac", "1", "-ar", "16000",
                          "-c:a", "pcm_s16le", str(wav)])       # 16-bit, dat verwacht read_wav()
                     try:
-                        cues = transcribe(wav, language, show_bar, model_name)
+                        clip_words = transcribe_words(wav, language, show_bar, model_name)
                     finally:
                         wav.unlink(missing_ok=True)            # opruimen, ook als het misgaat
                 if subs:
+                    groups = group_words(clip_words)
+                    cues = [[a, b, "".join(w[2] for w in ws).strip()] for a, b, ws in groups]
                     if cues:                                    # geen spraak = geen ondertitels
                         write_srt(srt, cues)
-                        write_ass(ass, cues, out_w, out_h, top)
+                        if sub_style == "tiktok":
+                            write_tiktok_ass(ass, groups, out_w, out_h, top, sub_color, sub_upper)
+                        else:
+                            write_ass(ass, cues, out_w, out_h, top)
                         ass_filter = f"ass={name}.ass"
                     else:
                         log("Geen spraak gevonden, dus geen ondertitels.")
@@ -1196,7 +1260,7 @@ def render_job(data):
                 logo_box = None
                 if logo_file:
                     if ass_filter and top is not None:
-                        y0 = top + round(min(out_w, out_h) * 0.065 * 1.7)    # onder de tekstregel
+                        y0 = top + round(subtitle_size(sub_style, out_w, out_h) * 1.7)  # onder de tekst
                     elif not ass_filter and vid_bottom is not None:
                         y0 = vid_bottom + 50
                     else:
