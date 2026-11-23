@@ -131,6 +131,8 @@ De analysefunctie is bedoeld voor YouTube-video's. ClipAPP vraagt maximaal **1.0
 
 Als YouTube een kijkersheatmap beschikbaar stelt, toont de app daarnaast een **relatieve heatmapscore** per interval. Dat is geen absoluut aantal kijkers. Sommige video's hebben geen heatmap, geen toegankelijke comments of onvoldoende gegevens; in dat geval kan de analyse beperkt zijn.
 
+Bij een **afgelopen livestream** kun je ook **de live-chat analyseren** aanvinken. De app haalt dan de chat-replay op en telt per interval hoeveel berichten er werden gestuurd (oranje stippellijn in de grafiek en een extra kolom in de tabel). Drukke momenten in de chat tellen mee in de clipvoorstellen en in de TikTok-maker. Het ophalen van de chat kan bij lange streams enkele minuten duren.
+
 Na de analyse kun je clipvoorstellen genereren:
 
 - Standaard: **3 clips van 30 seconden**.
@@ -253,7 +255,7 @@ Of, op macOS en Linux:
 | `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |
 | `delivery.py` | Optionele Gmail- en Drive-integratie |
 | `start.py` | Lokale start, virtuele omgeving en controles |
-| `heatmap.py`, `chatpieken.py` | Losse opdrachtregelhulpmiddelen |
+| `heatmap.py`, `chatpieken.py` | Losse opdrachtregelhulpmiddelen (de live-chatanalyse zit nu ook in de app) |
 | `tests/` | Geautomatiseerde tests |
 | `work/` | Tijdelijke taakbestanden en exports |
 

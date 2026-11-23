@@ -741,6 +741,7 @@
   .auto-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.5rem; }
   #group-jumpcuts.active, #group-jumpcuts:has(input:checked) { border-color: var(--primary, #7c3aed); }
   #sub-style-row { flex-wrap: wrap; gap: 8px; }
+  .analysis-chat-option { margin: 4px 0 12px; font-size: 0.85rem; }
   .inline-check { display: inline-flex; align-items: center; gap: 6px; }
   .local-upload { display: flex; justify-content: center; margin-top: 12px; }
   .local-upload-btn {

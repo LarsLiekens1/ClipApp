@@ -24,7 +24,7 @@ from delivery import (
     InvalidRecipient,
     deliver_clip,
 )
-from video_analysis import analyze_video_info
+from video_analysis import add_chat_counts, analyze_video_info, chat_offsets
 from auto_clips import AutoClipError, loudness_per_second, suggest_clips
 from face_crop import face_crop_filter
 
@@ -974,6 +974,22 @@ def upload_video():
                    video=f"/media/{job}/{preview.name}")
 
 
+def fetch_chat_offsets(url):
+    """Download de chat-replay van een afgelopen livestream en geef de tijden van de berichten."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        log("Live-chat van de stream ophalen (bij lange streams kan dit even duren)...")
+        ytdlp("--skip-download", "--write-subs", "--sub-langs", "live_chat",
+              "-o", str(Path(tmp) / "chat.%(ext)s"), url)
+        files = list(Path(tmp).glob("*.live_chat.json"))
+        if not files:
+            return []
+        with open(files[0], encoding="utf-8") as f:
+            offsets = chat_offsets(f)
+    log(f"Live-chat: {len(offsets)} berichten.")
+    return offsets
+
+
 @app.post("/api/analyze-comments")
 def analyze_comments():
     payload = request.get_json(silent=True)
@@ -1000,7 +1016,11 @@ def analyze_comments():
             "--extractor-args", "youtube:max_comments=1000",
             url,
         )
-        result = analyze_video_info(json.loads(output))
+        info = json.loads(output)
+        result = analyze_video_info(info)
+        result["was_live"] = info.get("live_status") in ("was_live", "post_live") or bool(info.get("was_live"))
+        if payload.get("live_chat") and result["was_live"]:
+            add_chat_counts(result, fetch_chat_offsets(url))
     except RuntimeError as exc:
         return jsonify(error=f"YouTube-data ophalen mislukt: {exc}"), 502
     except json.JSONDecodeError:

@@ -127,6 +127,16 @@ def _range_mean(values, start, end):
     return sum(part) / len(part), max(part)
 
 
+def _chat(bins, start, end):
+    """Aantal live-chatberichten in een tijdvak (naar rato van de overlap)."""
+    total = 0.0
+    for b in bins:
+        overlap = min(end, b["end"]) - max(start, b["start"])
+        if overlap > 0:
+            total += b.get("chat", 0) * overlap / max(1e-6, b["end"] - b["start"])
+    return total
+
+
 def _audience(bins, start, end):
     """Comment-vermeldingen (opgeteld) en heatmapscore (gewogen gemiddelde) in een tijdvak."""
     mentions, weighted, weight = 0.0, 0.0, 0.0
@@ -152,13 +162,17 @@ def _clean_bins(bins):
         except (KeyError, TypeError, ValueError):
             continue
         mentions = b.get("comment_mentions") or 0
+        chat = b.get("chat_messages") or 0
+        if not isinstance(chat, (int, float)) or not math.isfinite(chat):
+            chat = 0
         viewers = b.get("viewer_score")
         if not isinstance(mentions, (int, float)) or not math.isfinite(mentions):
             mentions = 0
         if not isinstance(viewers, (int, float)) or not math.isfinite(viewers):
             viewers = None
         if end > start:
-            out.append({"start": start, "end": end, "mentions": max(0, mentions), "viewers": viewers})
+            out.append({"start": start, "end": end, "mentions": max(0, mentions),
+                        "chat": max(0, chat), "viewers": viewers})
     return out
 
 
@@ -257,6 +271,7 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
             t += 5.0
 
     max_mentions = max((_audience(bins, a, b)[0] for a, b, _ in spans), default=0.0)
+    max_chat = max((_chat(bins, a, b) for a, b, _ in spans), default=0.0)
 
     def loud(start, end):
         mean_e, peak_e = _range_mean(energy, start, end)
@@ -267,7 +282,8 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
     max_loud_peak = max((p for _, p in loud_raw), default=0.0) or 1.0
     has = {
         "hook": bool(sentences), "tempo": bool(sentences), "emotion": bool(sentences),
-        "energy": bool(energy), "audience": max_mentions > 0 or max_view > min_view,
+        "energy": bool(energy),
+        "audience": max_mentions > 0 or max_view > min_view or max_chat > 0,
     }
 
     scored = []
@@ -306,6 +322,10 @@ def suggest_clips(cues, duration, count=5, min_len=20, max_len=60,
                 parts.append(_clamp((viewers - min_view) / (max_view - min_view)))
                 if parts[-1] >= 0.7:
                     notes.append("veel herbekeken (heatmap)")
+            if max_chat > 0:
+                parts.append(_clamp(_chat(bins, start, end) / max_chat))
+                if parts[-1] >= 0.7:
+                    notes.append("druk in de live-chat")
             features["audience"] = sum(parts) / len(parts) if parts else 0.0
 
         used = {k: w for k, w in WEIGHTS.items() if has[k] and k in features}

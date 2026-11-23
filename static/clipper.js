@@ -103,6 +103,11 @@ const I18N = {
     btn_upload_video: "Of kies een video van je computer",
     vert_face: "Volg het gezicht (beeld vult het hele scherm; anders blur/balken)",
     auto_face: "Volg het gezicht",
+    analysis_live_chat: "Ook de live-chat analyseren (alleen bij afgelopen livestreams; kan enkele minuten duren)",
+    analysis_table_chat: "Chatberichten",
+    analysis_chat_peak: "Drukste moment in de live-chat: {interval} ({count} van {total} berichten; oranje stippellijn).",
+    analysis_chat_empty: "De live-chat bevatte geen berichten.",
+    analysis_chat_not_stream: "Dit is geen afgelopen livestream, dus er is geen live-chat om te analyseren.",
     jump_title: "Stiltes eruit knippen",
     jump_desc: "Jump cuts: pauzes in de clip worden automatisch weggeknipt voor een sneller tempo",
     subs_style_label: "Stijl:",
@@ -235,6 +240,11 @@ const I18N = {
     btn_upload_video: "Or choose a video from your computer",
     vert_face: "Follow the face (fills the whole screen; otherwise blur/bars)",
     auto_face: "Follow the face",
+    analysis_live_chat: "Also analyse the live chat (finished livestreams only; can take a few minutes)",
+    analysis_table_chat: "Chat messages",
+    analysis_chat_peak: "Busiest live chat moment: {interval} ({count} of {total} messages; orange dashed line).",
+    analysis_chat_empty: "The live chat had no messages.",
+    analysis_chat_not_stream: "This is not a finished livestream, so there is no live chat to analyse.",
     jump_title: "Cut out silences",
     jump_desc: "Jump cuts: pauses in the clip are removed automatically for a faster pace",
     subs_style_label: "Style:",
@@ -451,18 +461,23 @@ function generateClipSuggestions(data, requestedCount, requestedDuration, existi
   const maxViewers = Math.max(0, ...viewerScores);
   const hasMentions = maxMentions > 0;
   const hasViewers = maxViewers > 0;
-  if (!hasMentions && !hasViewers) return [];
+  const maxChat = Math.max(0, ...bins.map(bin => bin.chat_messages || 0));
+  const hasChat = maxChat > 0;
+  if (!hasMentions && !hasViewers && !hasChat) return [];
 
-  const bothSignalsAvailable = hasMentions && hasViewers;
-  const commentWeight = bothSignalsAvailable ? 0.5 : (hasMentions ? 1 : 0);
-  const viewerWeight = bothSignalsAvailable ? 0.5 : (hasViewers ? 1 : 0);
+  // alle beschikbare signalen tellen even zwaar
+  const signalCount = [hasMentions, hasViewers, hasChat].filter(Boolean).length;
+  const commentWeight = hasMentions ? 1 / signalCount : 0;
+  const viewerWeight = hasViewers ? 1 / signalCount : 0;
+  const chatWeight = hasChat ? 1 / signalCount : 0;
   const rankedBins = bins.map(bin => {
     const viewerScore = Number.isFinite(bin.viewer_score) ? Math.max(0, bin.viewer_score) : 0;
     return {
       bin,
       viewerScore,
       rank: (hasMentions ? bin.comment_mentions / maxMentions * commentWeight : 0)
-        + (hasViewers ? viewerScore / maxViewers * viewerWeight : 0),
+        + (hasViewers ? viewerScore / maxViewers * viewerWeight : 0)
+        + (hasChat ? (bin.chat_messages || 0) / maxChat * chatWeight : 0),
     };
   }).filter(item => item.rank > 0).sort((a, b) =>
     b.rank - a.rank
@@ -507,6 +522,9 @@ function renderAnalysis(data) {
   rows.replaceChildren();
 
   const bins = data.bins || [];
+  const hasChatData = bins.some(bin => Number.isFinite(bin.chat_messages));
+  const maxChat = Math.max(1, ...bins.map(bin => bin.chat_messages || 0));
+  $('#analysis-chat-header').hidden = !hasChatData;
   const hasMentions = bins.some(bin => bin.comment_mentions > 0);
   const viewerBins = bins.filter(bin => Number.isFinite(bin.viewer_score));
   const maxMentions = Math.max(1, ...bins.map(bin => bin.comment_mentions));
@@ -551,6 +569,19 @@ function renderAnalysis(data) {
       score: fmtHeatmapScore(viewerPeak.viewer_score),
     }));
   }
+  if (hasChatData) {
+    const chatPeak = bins.reduce((best, bin) =>
+      (bin.chat_messages || 0) > (best ? best.chat_messages : 0) ? bin : best, null);
+    messages.push(chatPeak
+      ? t('analysis_chat_peak', {
+        interval: `${fmtChartTime(chatPeak.start)}–${fmtChartTime(chatPeak.end)}`,
+        count: chatPeak.chat_messages.toLocaleString(currentLang),
+        total: (data.chat_messages || 0).toLocaleString(currentLang),
+      })
+      : t('analysis_chat_empty'));
+  } else if ($('#analysis-live-chat').checked && data.was_live === false) {
+    messages.push(t('analysis_chat_not_stream'));
+  }
   status.textContent = messages.join(' ');
   if (!bins.length) return;
 
@@ -561,6 +592,7 @@ function renderAnalysis(data) {
       bin.comment_mentions.toLocaleString(currentLang),
       Number.isFinite(bin.viewer_score) ? fmtHeatmapScore(bin.viewer_score) : '—',
     ];
+    if (hasChatData) values.push((bin.chat_messages || 0).toLocaleString(currentLang));
     values.forEach((value, index) => {
       const cell = document.createElement('td');
       if (index > 0) cell.className = 'numeric';
@@ -621,6 +653,19 @@ function renderAnalysis(data) {
         'stroke-linecap': 'round',
       });
     }
+  }
+
+  if (hasChatData) {
+    const yChat = value => bottom - (value / maxChat) * height;
+    const chatPoints = bins.map(bin => `${x((bin.start + bin.end) / 2)},${yChat(bin.chat_messages || 0)}`);
+    add('path', {
+      d: `M ${chatPoints.join(' L ')}`,
+      fill: 'none',
+      stroke: '#fb923c',
+      'stroke-width': 2,
+      'stroke-dasharray': '6 4',
+      'stroke-linejoin': 'round',
+    });
   }
 
   for (let tick = 0; tick <= 4; tick++) {
@@ -916,7 +961,10 @@ $('#analyze-comments-btn').onclick = async () => {
   $('#analysis-suggestion-status').textContent = '';
   $('#comment-analysis-results').hidden = true;
   try {
-    const data = await api('/api/analyze-comments', { url: $('#url').value });
+    const data = await api('/api/analyze-comments', {
+      url: $('#url').value,
+      live_chat: $('#analysis-live-chat').checked,
+    });
     renderAnalysis(data);
   } catch (err) {
     $('#comment-analysis-status').textContent = err.message;
@@ -1144,7 +1192,7 @@ $('#render-btn').onclick = async () => {
 // --- instellingen onthouden (alleen in deze browser) ---
 const SETTINGS_KEY = 'clipapp_settings';
 // volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
-const REMEMBERED = ['#jump-cuts', '#subs', '#lang', '#whisper-model', '#youtube-subs', '#sub-style', '#sub-color', '#sub-upper', '#vertical', '#blur', '#face-crop', '#caption-toggle', '#caption-position',
+const REMEMBERED = ['#analysis-live-chat', '#jump-cuts', '#subs', '#lang', '#whisper-model', '#youtube-subs', '#sub-style', '#sub-color', '#sub-upper', '#vertical', '#blur', '#face-crop', '#caption-toggle', '#caption-position',
   '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
 
 function saveSettings() {

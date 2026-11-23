@@ -155,6 +155,10 @@
     <div class="analysis-box" id="comment-analysis-panel" hidden>
       <h2 data-i18n="analysis_title">Commenttijdstempels & kijkersmomenten</h2>
       <p data-i18n="analysis_desc">Vergelijk tijdstempels die in YouTube-comments worden genoemd met de beschikbare kijkersheatmap.</p>
+      <label class="inline-check analysis-chat-option" for="analysis-live-chat">
+        <input type="checkbox" id="analysis-live-chat">
+        <span data-i18n="analysis_live_chat">Ook de live-chat analyseren (alleen bij afgelopen livestreams; kan enkele minuten duren)</span>
+      </label>
       <button type="button" class="primary" id="analyze-comments-btn" data-i18n="analysis_button">Analyseer comments</button>
       <p id="comment-analysis-status" role="status" aria-live="polite"></p>
       <div id="comment-analysis-results" hidden>
@@ -190,6 +194,7 @@
                 <th scope="col" data-i18n="analysis_table_interval">Video-interval</th>
                 <th scope="col" class="numeric" data-i18n="analysis_table_mentions">Timestamps genoemd</th>
                 <th scope="col" class="numeric" data-i18n="analysis_table_score">Heatmapscore (relatief)</th>
+                <th scope="col" class="numeric" id="analysis-chat-header" data-i18n="analysis_table_chat" hidden>Chatberichten</th>
               </tr>
             </thead>
             <tbody id="analysis-data-rows"></tbody>
