@@ -144,7 +144,7 @@ Na de commentanalyse kun je bij het clip-exporteren **Caption bovenin** inschake
 
 ### Exportopties van de Clipper
 
-- **Ondertitels:** optioneel, met automatische taalherkenning of Nederlands, Engels, Frans en Duits. De Whisper-modellen draaien lokaal; het gekozen model wordt bij het eerste gebruik gedownload.
+- **Ondertitels:** optioneel, met automatische taalherkenning of Nederlands, Engels, Frans en Duits. De Whisper-modellen draaien lokaal; het gekozen model wordt bij het eerste gebruik gedownload. Kies bij **Nauwkeurigheid** tussen `tiny` (snelst) en `medium` (nauwkeurigst). Heb je een NVIDIA-videokaart met CUDA, dan gebruikt Whisper die automatisch en is het vele malen sneller (`WHISPER_DEVICE=cpu` in `.env` zet dat uit).
 - **Verticaal 9:16:** maak een formaat voor bijvoorbeeld Shorts of Reels.
 - **Geblurde achtergrond:** vul de verticale beeldruimte met een vervaagde versie van de video.
 - **Logo:** voeg bij verticale clips een PNG-, JPG- of WebP-logo toe.

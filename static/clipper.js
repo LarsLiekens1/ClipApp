@@ -100,6 +100,11 @@ const I18N = {
     auto_title: "✨ Automatisch TikToks maken",
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
+    subs_model_label: "Nauwkeurigheid:",
+    opt_model_tiny: "Snelst (tiny)",
+    opt_model_base: "Snel (base)",
+    opt_model_small: "Gebalanceerd (small)",
+    opt_model_medium: "Nauwkeurigst, traag (medium)",
     auto_blur: "Geblurde achtergrond",
     auto_caption: "Caption bovenin",
     auto_hint: "Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.",
@@ -209,6 +214,11 @@ const I18N = {
     auto_title: "✨ Make TikToks automatically",
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
+    subs_model_label: "Accuracy:",
+    opt_model_tiny: "Fastest (tiny)",
+    opt_model_base: "Fast (base)",
+    opt_model_small: "Balanced (small)",
+    opt_model_medium: "Most accurate, slow (medium)",
     auto_blur: "Blurred background",
     auto_caption: "Caption on top",
     auto_hint: "Tip: turn on 'Create subtitles' for smarter picks based on what is said (uses Whisper). Without subtitles the app picks on loudness and comments.",
@@ -700,6 +710,8 @@ const groupSubs = $('#group-subs');
 function updateSubsState() {
   langSelect.disabled = !subsCheck.checked;
   subLangRow.classList.toggle('disabled', !subsCheck.checked);
+  $('#whisper-model').disabled = !subsCheck.checked;
+  $('#sub-model-row').classList.toggle('disabled', !subsCheck.checked);
   groupSubs.classList.toggle('active', subsCheck.checked);
 }
 subsCheck.addEventListener('change', updateSubsState);
@@ -868,6 +880,7 @@ $('#auto-btn').onclick = async () => {
       min_len: minLen,
       max_len: maxLen,
       language: $('#lang').value,
+      whisper_model: $('#whisper-model').value,
       speech: subsCheck.checked,
       bins: analysisData && Array.isArray(analysisData.bins) ? analysisData.bins : null,
       comments: analysisData && Array.isArray(analysisData.caption_comments)
@@ -941,6 +954,7 @@ $('#render-btn').onclick = async () => {
       job, segments: renderSegments,
       subtitles: $('#subs').checked,
       language: $('#lang').value,
+      whisper_model: $('#whisper-model').value,
       vertical: $('#vertical').checked,
       blur: $('#blur').checked,
       logo: hasLogo,
@@ -1041,7 +1055,7 @@ $('#render-btn').onclick = async () => {
 // --- instellingen onthouden (alleen in deze browser) ---
 const SETTINGS_KEY = 'clipapp_settings';
 // volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
-const REMEMBERED = ['#subs', '#lang', '#vertical', '#blur', '#caption-toggle', '#caption-position',
+const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#vertical', '#blur', '#caption-toggle', '#caption-position',
   '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
 
 function saveSettings() {

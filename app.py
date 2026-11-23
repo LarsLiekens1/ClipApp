@@ -44,7 +44,12 @@ WORK = APP_DIR / "work"          # hier komen de clips en bewerkte bestanden (pe
 WORK.mkdir(exist_ok=True)
 
 # tiny / base / small / medium - groter = nauwkeuriger maar trager op CPU
+WHISPER_MODELS = ("tiny", "base", "small", "medium")
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
+if WHISPER_MODEL not in WHISPER_MODELS:
+    WHISPER_MODEL = "small"
+# auto = NVIDIA-GPU gebruiken als die er is (veel sneller), anders de processor
+WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "auto").lower()
 
 # Ondertitels komen in korte stukjes in beeld. Pas deze twee aan naar smaak:
 MAX_WORDS = 3                 # maximaal zoveel woorden tegelijk
@@ -58,7 +63,10 @@ app = Flask(__name__, static_folder=str(BASE / "static"), static_url_path="/stat
 # Geen limiet op de grootte van een request: de editor moet grote video's kunnen uploaden.
 # (De limiet voor het logo controleren we in upload_logo zelf.)
 app.config["MAX_CONTENT_LENGTH"] = None
-_model = None                 # Whisper-model wordt pas geladen bij de eerste keer ondertitelen
+_models = {}                  # Whisper-modellen worden pas geladen bij de eerste keer ondertitelen
+_whisper_lock = threading.Lock()   # één transcriptie tegelijk: het model is groot en niet thread-safe
+_job_locks = {}               # per taak één export/analyse tegelijk, anders overschrijven ze elkaar
+_job_locks_guard = threading.Lock()
 _src_lock = threading.Lock()  # voorkomt dat twee uploads tegelijk sources.json overschrijven
 
 
@@ -413,26 +421,88 @@ def read_wav(path):
     return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe(wav, language, on_progress=None):
-    """Zet spraak om naar korte ondertitelstukjes met faster-whisper (draait lokaal)."""
-    global _model
+def whisper_device():
+    """'cuda' als er een bruikbare NVIDIA-GPU is (en WHISPER_DEVICE niet 'cpu' is), anders 'cpu'."""
+    if WHISPER_DEVICE in ("cpu", "cuda"):
+        return WHISPER_DEVICE
+    try:
+        import ctranslate2
+        return "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+    except Exception:
+        return "cpu"
+
+
+def get_model(name=None):
+    """Laad een Whisper-model (één keer per modelnaam). Valt terug op de processor als de GPU faalt."""
+    name = name if name in WHISPER_MODELS else WHISPER_MODEL
+    if name in _models:
+        return _models[name]
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         raise RuntimeError("faster-whisper is niet geinstalleerd: pip install faster-whisper")
-    if _model is None:
-        log("Whisper-model laden (de eerste keer kan dit even duren)...")
-        _model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+    device = whisper_device()
+    log(f"Whisper-model '{name}' laden op {'GPU' if device == 'cuda' else 'processor'} "
+        "(de eerste keer wordt het gedownload, dat kan even duren)...")
+    try:
+        model = WhisperModel(name, device=device,
+                             compute_type="float16" if device == "cuda" else "int8")
+    except Exception as e:
+        if device != "cuda":
+            raise
+        log(f"GPU niet bruikbaar ({e}); Whisper draait nu op de processor.")
+        model = WhisperModel(name, device="cpu", compute_type="int8")
+    _models[name] = model
+    return model
+
+
+def transcribe(wav, language, on_progress=None, model_name=None):
+    """Zet spraak om naar korte ondertitelstukjes met faster-whisper (draait lokaal)."""
     audio = read_wav(wav)
     total = len(audio) / 16000                 # lengte van de audio in seconden
-    # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
-    segments, _ = _model.transcribe(audio, language=language or None, word_timestamps=True)
     words = []
-    for s in segments:                         # de segmenten komen een voor een binnen
-        words.extend(s.words or [])
-        if on_progress and total:
-            on_progress(s.end / total)
+    with _whisper_lock:
+        model = get_model(model_name)
+        # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
+        segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True)
+        for s in segments:                     # de segmenten komen een voor een binnen
+            words.extend(s.words or [])
+            if on_progress and total:
+                on_progress(s.end / total)
     return make_cues(words)
+
+
+def job_lock(d):
+    """Het lock van één taakmap."""
+    with _job_locks_guard:
+        return _job_locks.setdefault(d.name, threading.Lock())
+
+
+class job_busy:
+    """Probeer een taak te claimen: `with job_busy(d) as ok:`; ok=False als er al iets loopt."""
+
+    def __init__(self, d):
+        self.lock = job_lock(d)
+        self.ok = False
+
+    def __enter__(self):
+        self.ok = self.lock.acquire(blocking=False)
+        return self.ok
+
+    def __exit__(self, *exc):
+        if self.ok:
+            self.lock.release()
+        return False
+
+
+BUSY_ERROR = "Er loopt al een export of analyse voor deze video. Wacht tot die klaar is."
+
+
+def whisper_model_from(data):
+    name = data.get("whisper_model") or WHISPER_MODEL
+    if name not in WHISPER_MODELS:
+        raise ValueError("Onbekend Whisper-model.")
+    return name
 
 
 # ---------- routes: clipper ----------
@@ -518,7 +588,7 @@ def analyze_comments():
     return jsonify(result)
 
 
-def analyze_audio(d, url, language, speech):
+def analyze_audio(d, url, language, speech, model_name=None):
     """Meet de luidheid per seconde en (alleen als speech=True) transcribeer met Whisper.
     Zonder speech wordt Whisper niet geladen of gedownload.
     Het resultaat wordt bewaard in transcript.json, dus een tweede keer is direct klaar.
@@ -528,7 +598,9 @@ def analyze_audio(d, url, language, speech):
     if cache.exists():
         saved = json.loads(cache.read_text(encoding="utf-8"))
     has_energy = "energy" in saved
-    has_cues = saved.get("cues") is not None and saved.get("language") == (language or "")
+    model_name = model_name or WHISPER_MODEL
+    has_cues = (saved.get("cues") is not None and saved.get("language") == (language or "")
+                and saved.get("model", WHISPER_MODEL) == model_name)
     if has_energy and (has_cues or not speech):
         return (saved["cues"] if speech else []), saved["energy"]
 
@@ -554,7 +626,7 @@ def analyze_audio(d, url, language, speech):
             cues = saved.get("cues") if has_cues else None
             if speech and cues is None:
                 t = step(3, total, "Hele video transcriberen (Whisper)... dit kan even duren")
-                cues = transcribe(wav, language, show_bar)
+                cues = transcribe(wav, language, show_bar, model_name)
                 end_bar()
                 step_done(t)
         finally:
@@ -564,7 +636,7 @@ def analyze_audio(d, url, language, speech):
             audio.unlink(missing_ok=True)
     data = {"energy": energy}
     if cues is not None:
-        data.update(language=language or "", cues=cues)
+        data.update(language=language or "", cues=cues, model=model_name)
     cache.write_text(json.dumps(data), encoding="utf-8")
     return (cues if speech else []), energy
 
@@ -592,20 +664,27 @@ def auto_clips():
     bins = data.get("bins") if isinstance(data.get("bins"), list) else None
     comments = data.get("comments") if isinstance(data.get("comments"), list) else None
     speech = bool(data.get("speech"))
+    try:
+        model_name = whisper_model_from(data)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     t_all = time.time()
     log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s, "
         f"{'met' if speech else 'zonder'} spraakherkenning) ===")
-    try:
-        cues, energy = analyze_audio(d, meta["url"], language, speech)
-        clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
-                              bins=bins, comments=comments, energy=energy)
-    except AutoClipError as e:
-        log(f"MISLUKT: {e}")
-        return jsonify(error=str(e)), 422
-    except Exception as e:
-        log(f"MISLUKT: {e}")
-        return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
+    with job_busy(d) as ok:
+        if not ok:
+            return jsonify(error=BUSY_ERROR), 409
+        try:
+            cues, energy = analyze_audio(d, meta["url"], language, speech, model_name)
+            clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
+                                  bins=bins, comments=comments, energy=energy)
+        except AutoClipError as e:
+            log(f"MISLUKT: {e}")
+            return jsonify(error=str(e)), 422
+        except Exception as e:
+            log(f"MISLUKT: {e}")
+            return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
     log(f"VOORSTELLEN KLAAR: {len(clips)} clip(s) gekozen in {time.time() - t_all:.0f} s.")
     return jsonify(clips=clips)
 
@@ -678,9 +757,18 @@ def send_video():
 
 @app.post("/api/render")
 def render():
-    """Haal elk gekozen stuk apart op, maak (optioneel) ondertitels en (optioneel) 9:16."""
+    """Clips maken; per taak één export tegelijk."""
     data = request.get_json(silent=True) or {}
-    d = job_dir(data.get("job", ""))
+    d = job_dir(str(data.get("job", "")))
+    with job_busy(d) as ok:
+        if not ok:
+            return jsonify(error=BUSY_ERROR), 409
+        return render_job(data)
+
+
+def render_job(data):
+    """Haal elk gekozen stuk apart op, maak (optioneel) ondertitels en (optioneel) 9:16."""
+    d = job_dir(str(data.get("job", "")))
     try:
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -691,6 +779,10 @@ def render():
     vertical = bool(data.get("vertical"))
     blur = vertical and bool(data.get("blur"))     # geblurde achtergrond kan alleen bij 9:16
     language = data.get("language") or None
+    try:
+        model_name = whisper_model_from(data)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
     logo_file = find_logo(d) if use_logo else None
     caption_position = data.get("caption_position", "above")
@@ -774,7 +866,7 @@ def render():
                     run(["ffmpeg", "-y", "-i", str(part), "-vn", "-ac", "1", "-ar", "16000",
                          "-c:a", "pcm_s16le", str(wav)])       # 16-bit, dat verwacht read_wav()
                     try:
-                        cues = transcribe(wav, language, show_bar)
+                        cues = transcribe(wav, language, show_bar, model_name)
                     finally:
                         wav.unlink(missing_ok=True)            # opruimen, ook als het misgaat
                     if cues:                                    # geen spraak = geen ondertitels
@@ -1009,9 +1101,18 @@ def video_graph(w, h, blur):
 
 @app.post("/api/editor/export")
 def editor_export():
-    """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
+    """Editor-export; per taak één tegelijk (ze delen de map ed_tmp)."""
     data = request.get_json(silent=True) or {}
-    d = job_dir(data.get("job", ""))
+    d = job_dir(str(data.get("job", "")))
+    with job_busy(d) as ok:
+        if not ok:
+            return jsonify(error=BUSY_ERROR), 409
+        return editor_export_job(data)
+
+
+def editor_export_job(data):
+    """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
+    d = job_dir(str(data.get("job", "")))
     srcs = load_sources(d)
     items = []
     try:
