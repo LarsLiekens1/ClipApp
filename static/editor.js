@@ -801,7 +801,7 @@ $('#export-btn').onclick = async () => {
   $('#result').hidden = true;
   setStatus(t('msg_exporting'));
   try {
-    const data = await api('/api/editor/export', {
+    const data = await runTask('/api/editor/export', {
       job,
       clips: clips.map(c => ({ src: c.src, start: c.start, end: c.end })),
       format: $('#format').value,

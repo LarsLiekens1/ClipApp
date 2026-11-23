@@ -920,7 +920,7 @@ $('#auto-btn').onclick = async () => {
   btn.disabled = true;
   $('#auto-status').textContent = t('auto_working');
   try {
-    const data = await api('/api/auto-clips', {
+    const data = await runTask('/api/auto-clips', {
       job,
       count: Number($('#auto-count').value),
       min_len: minLen,
@@ -996,7 +996,7 @@ $('#render-btn').onclick = async () => {
       if (!r.ok) throw new Error(d.error || t('err_logo_upload'));
       hasLogo = true;
     }
-    const data = await api('/api/render', {
+    const data = await runTask('/api/render', {
       job, segments: renderSegments,
       subtitles: $('#subs').checked,
       language: $('#lang').value,

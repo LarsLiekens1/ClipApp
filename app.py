@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from flask import Flask, Response, abort, jsonify, request, send_file, send_from_directory
+from werkzeug.exceptions import HTTPException
 from colorama import Fore, Style, just_fix_windows_console
 from dotenv import load_dotenv
 
@@ -109,12 +110,64 @@ def print_startup_banner(port):
     print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
 
 
+# ---------- achtergrondtaken (voortgang + annuleren in de browser) ----------
+
+class TaskCancelled(Exception):
+    pass
+
+
+class Task:
+    def __init__(self, kind):
+        self.id = uuid.uuid4().hex[:16]
+        self.kind = kind
+        self.status = "running"          # running / done / error / cancelled
+        self.title = ""                  # bv. "Clip 2 van 5 (1:20 tot 1:50, 30 s)"
+        self.step = ""                   # bv. "Stap 2/3  Ondertitels maken (Whisper)..."
+        self.progress = None             # 0..1 van de huidige stap, of None
+        self.result = None
+        self.error = None
+        self.cancel = threading.Event()
+        self.finished = None
+
+    def as_dict(self):
+        return {"id": self.id, "kind": self.kind, "status": self.status, "title": self.title,
+                "step": self.step, "progress": self.progress, "result": self.result,
+                "error": self.error}
+
+
+_tasks = {}
+_tasks_lock = threading.Lock()
+_current = threading.local()
+
+
+def current_task():
+    return getattr(_current, "task", None)
+
+
+def check_cancel():
+    task = current_task()
+    if task and task.cancel.is_set():
+        raise TaskCancelled("Geannuleerd.")
+
+
 def run(cmd, cwd=None):
-    """Voer een commando uit; bij een fout krijg je de laatste regels van de foutmelding."""
+    """Voer een commando uit; bij een fout krijg je de laatste regels van de foutmelding.
+    Wordt de achtergrondtaak geannuleerd, dan wordt het commando gestopt."""
     # PYTHONUTF8 + utf-8: anders gaan titels met bijzondere tekens fout op Windows
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace",
-                       env={**os.environ, "PYTHONUTF8": "1"})
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         encoding="utf-8", errors="replace",
+                         env={**os.environ, "PYTHONUTF8": "1"})
+    while True:
+        try:
+            stdout, stderr = p.communicate(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            task = current_task()
+            if task and task.cancel.is_set():
+                p.kill()
+                p.communicate()
+                raise TaskCancelled("Geannuleerd.")
+    p = subprocess.CompletedProcess(cmd, p.returncode, stdout, stderr)
     if p.returncode != 0:
         # volledige fout in de terminal, zodat je kunt zien wat er precies misging
         print(f"\n{Fore.RED}[FOUT] {' '.join(str(c) for c in cmd[:8])} ...\n"
@@ -132,6 +185,12 @@ _bar_open = False
 def log(msg):
     """Regel met de tijd ervoor, zodat je in de terminal ziet wat er wanneer gebeurde."""
     end_bar()
+    task = current_task()
+    if task:
+        if msg.startswith("==="):
+            task.title, task.step, task.progress = msg.strip("= "), "", None
+        elif msg.startswith("Stap"):
+            task.step, task.progress = " ".join(msg.split()), None
     color = Fore.CYAN
     if "MISLUKT" in msg or "[FOUT]" in msg:
         color = Fore.RED
@@ -150,6 +209,9 @@ def show_bar(frac):
     """Voortgangsbalk die op dezelfde regel bijwerkt."""
     global _bar_open
     frac = max(0.0, min(1.0, frac))
+    task = current_task()
+    if task:
+        task.progress = frac
     n = int(frac * 20)
     print(
         f"\r           {Fore.CYAN}{'#' * n}{Fore.LIGHTBLACK_EX}{'-' * (20 - n)}"
@@ -168,6 +230,7 @@ def end_bar():
 
 
 def step(n, total, text):
+    check_cancel()
     log(f"Stap {n}/{total}  {text}")
     return time.time()
 
@@ -188,6 +251,12 @@ def run_ffmpeg(cmd, length, cwd=None):
                          text=True, encoding="utf-8", errors="replace")
     errors = []
     for line in p.stdout:
+        task = current_task()
+        if task and task.cancel.is_set():
+            p.kill()
+            p.wait()
+            p.stdout.close()
+            raise TaskCancelled("Geannuleerd.")
         line = line.strip()
         if line.startswith("out_time_us="):
             try:
@@ -468,6 +537,7 @@ def transcribe(wav, language, on_progress=None, model_name=None):
         # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
         segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True)
         for s in segments:                     # de segmenten komen een voor een binnen
+            check_cancel()
             words.extend(s.words or [])
             if on_progress and total:
                 on_progress(s.end / total)
@@ -498,6 +568,78 @@ class job_busy:
 
 
 BUSY_ERROR = "Er loopt al een export of analyse voor deze video. Wacht tot die klaar is."
+
+
+def _response_parts(resp):
+    if isinstance(resp, tuple):
+        resp, status = resp[0], resp[1]
+    else:
+        status = resp.status_code
+    return resp.get_json(silent=True) or {}, status
+
+
+def _run_task(task, fn, data, lock):
+    _current.task = task
+    try:
+        with app.app_context():
+            try:
+                body, status = _response_parts(fn(data))
+            except HTTPException as e:
+                body, status = {"error": e.description}, e.code
+        if task.cancel.is_set():
+            task.status = "cancelled"
+        elif status >= 400:
+            task.status, task.error = "error", body.get("error") or "Er ging iets mis."
+        else:
+            task.status, task.result = "done", body
+    except TaskCancelled:
+        task.status = "cancelled"
+    except Exception as e:                       # onverwachte fout: niet stil laten verdwijnen
+        log(f"MISLUKT: {e}")
+        task.status, task.error = "error", str(e)
+    finally:
+        _current.task = None
+        task.finished = time.time()
+        lock.release()
+
+
+def run_job(d, kind, fn, data):
+    """Voer een export/analyse uit. Met data["background"] gebeurt dat in een achtergrondtaak:
+    het antwoord is dan meteen {task: id} en de browser vraagt de voortgang op."""
+    lock = job_lock(d)
+    if not lock.acquire(blocking=False):
+        return jsonify(error=BUSY_ERROR), 409
+    if not data.get("background"):
+        try:
+            return fn(data)
+        finally:
+            lock.release()
+    task = Task(kind)
+    with _tasks_lock:
+        old = [k for k, t in _tasks.items() if t.finished and time.time() - t.finished > 3600]
+        for k in old:
+            del _tasks[k]
+        _tasks[task.id] = task
+    threading.Thread(target=_run_task, args=(task, fn, data, lock), daemon=True).start()
+    return jsonify(task=task.id), 202
+
+
+@app.get("/api/tasks/<task_id>")
+def task_status(task_id):
+    task = _tasks.get(task_id)
+    if not task:
+        return jsonify(error="Deze taak bestaat niet (meer)."), 404
+    return jsonify(task.as_dict())
+
+
+@app.post("/api/tasks/<task_id>/cancel")
+def task_cancel(task_id):
+    task = _tasks.get(task_id)
+    if not task:
+        return jsonify(error="Deze taak bestaat niet (meer)."), 404
+    task.cancel.set()
+    log("Annuleren gevraagd...")
+    return jsonify(ok=True)
 
 
 def whisper_model_from(data):
@@ -690,6 +832,11 @@ def auto_clips():
     """Kies automatisch de beste TikTok-momenten, met hook-caption en posttekst (alles lokaal)."""
     data = request.get_json(silent=True) or {}
     d = job_dir(str(data.get("job", "")))
+    return run_job(d, "auto-clips", auto_clips_job, data)
+
+
+def auto_clips_job(data):
+    d = job_dir(str(data.get("job", "")))
     try:
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -716,19 +863,19 @@ def auto_clips():
     t_all = time.time()
     log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s, "
         f"{'met' if speech else 'zonder'} spraakherkenning) ===")
-    with job_busy(d) as ok:
-        if not ok:
-            return jsonify(error=BUSY_ERROR), 409
-        try:
-            cues, energy = analyze_audio(d, meta["url"], language, speech, model_name)
-            clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
-                                  bins=bins, comments=comments, energy=energy)
-        except AutoClipError as e:
-            log(f"MISLUKT: {e}")
-            return jsonify(error=str(e)), 422
-        except Exception as e:
-            log(f"MISLUKT: {e}")
-            return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
+    try:
+        cues, energy = analyze_audio(d, meta["url"], language, speech, model_name)
+        clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
+                              bins=bins, comments=comments, energy=energy)
+    except AutoClipError as e:
+        log(f"MISLUKT: {e}")
+        return jsonify(error=str(e)), 422
+    except TaskCancelled:
+        log("Geannuleerd.")
+        return jsonify(error="Geannuleerd."), 499
+    except Exception as e:
+        log(f"MISLUKT: {e}")
+        return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
     log(f"VOORSTELLEN KLAAR: {len(clips)} clip(s) gekozen in {time.time() - t_all:.0f} s.")
     return jsonify(clips=clips)
 
@@ -804,10 +951,7 @@ def render():
     """Clips maken; per taak één export tegelijk."""
     data = request.get_json(silent=True) or {}
     d = job_dir(str(data.get("job", "")))
-    with job_busy(d) as ok:
-        if not ok:
-            return jsonify(error=BUSY_ERROR), 409
-        return render_job(data)
+    return run_job(d, "render", render_job, data)
 
 
 def render_job(data):
@@ -1154,10 +1298,7 @@ def editor_export():
     """Editor-export; per taak één tegelijk (ze delen de map ed_tmp)."""
     data = request.get_json(silent=True) or {}
     d = job_dir(str(data.get("job", "")))
-    with job_busy(d) as ok:
-        if not ok:
-            return jsonify(error=BUSY_ERROR), 409
-        return editor_export_job(data)
+    return run_job(d, "editor-export", editor_export_job, data)
 
 
 def editor_export_job(data):

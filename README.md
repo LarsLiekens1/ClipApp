@@ -107,7 +107,7 @@ Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `78
 2. Laad de video. YouTube wordt in de pagina afgespeeld. Voor andere bronnen maakt de app een kleine preview om te kunnen zoeken en afspelen.
 3. Stel start- en eindtijden in en voeg fragmenten toe, of analyseer een YouTube-video om fragmenten voor te laten stellen.
 4. Controleer de selectie en kies eventuele exportopties.
-5. Maak de clips en bekijk of download de resultaten.
+5. Maak de clips en bekijk of download de resultaten. Tijdens het maken zie je in de browser welke clip en stap bezig is, met een voortgangsbalk en een knop **Annuleren**.
 
 De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de videosite toestaat.
 
