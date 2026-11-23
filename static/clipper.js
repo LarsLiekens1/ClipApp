@@ -108,6 +108,15 @@ const I18N = {
     analysis_chat_peak: "Drukste moment in de live-chat: {interval} ({count} van {total} berichten; oranje stippellijn).",
     analysis_chat_empty: "De live-chat bevatte geen berichten.",
     analysis_chat_not_stream: "Dit is geen afgelopen livestream, dus er is geen live-chat om te analyseren.",
+    yt_title_placeholder: "Titel voor YouTube",
+    yt_privacy: "Zichtbaarheid",
+    yt_private: "Privé",
+    yt_unlisted: "Niet vermeld",
+    yt_public: "Openbaar",
+    yt_upload: "Upload als YouTube Short",
+    yt_uploading: "Uploaden naar YouTube...",
+    yt_done: "Op YouTube gezet ({privacy}).",
+    yt_confirm_public: "Deze clip wordt meteen openbaar op je YouTube-kanaal gezet. Doorgaan?",
     batch_title: "📦 Batch: meerdere video's in één keer",
     batch_desc: "Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.",
     batch_urls_label: "Links, één per regel",
@@ -252,6 +261,15 @@ const I18N = {
     analysis_chat_peak: "Busiest live chat moment: {interval} ({count} of {total} messages; orange dashed line).",
     analysis_chat_empty: "The live chat had no messages.",
     analysis_chat_not_stream: "This is not a finished livestream, so there is no live chat to analyse.",
+    yt_title_placeholder: "Title for YouTube",
+    yt_privacy: "Visibility",
+    yt_private: "Private",
+    yt_unlisted: "Unlisted",
+    yt_public: "Public",
+    yt_upload: "Upload as YouTube Short",
+    yt_uploading: "Uploading to YouTube...",
+    yt_done: "Uploaded to YouTube ({privacy}).",
+    yt_confirm_public: "This clip will be public on your YouTube channel right away. Continue?",
     batch_title: "📦 Batch: several videos at once",
     batch_desc: "Paste one link per line. Each video is analysed automatically and turned into TikToks with the settings below. You can't export anything else meanwhile.",
     batch_urls_label: "Links, one per line",
@@ -1257,7 +1275,51 @@ $('#render-btn').onclick = async () => {
         };
         extras.push(post, copy);
       }
-      fig.append(v, cap, ...extras, emailForm);
+      // uploaden als YouTube Short (gratis, standaard privé)
+      const ytForm = document.createElement('form');
+      ytForm.className = 'clip-youtube';
+      const ytTitle = document.createElement('input');
+      ytTitle.type = 'text';
+      ytTitle.maxLength = 90;
+      ytTitle.value = c.caption || '';
+      ytTitle.placeholder = t('yt_title_placeholder');
+      ytTitle.setAttribute('aria-label', t('yt_title_placeholder'));
+      const ytPrivacy = document.createElement('select');
+      ytPrivacy.setAttribute('aria-label', t('yt_privacy'));
+      for (const [value, key] of [['private', 'yt_private'], ['unlisted', 'yt_unlisted'], ['public', 'yt_public']]) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = t(key);
+        ytPrivacy.appendChild(option);
+      }
+      const ytButton = document.createElement('button');
+      ytButton.type = 'submit';
+      ytButton.textContent = t('yt_upload');
+      const ytLink = document.createElement('a');
+      ytLink.target = '_blank';
+      ytLink.rel = 'noopener';
+      ytLink.hidden = true;
+      ytForm.append(ytTitle, ytPrivacy, ytButton, ytLink);
+      ytForm.onsubmit = async event => {
+        event.preventDefault();
+        if (ytPrivacy.value === 'public' && !confirm(t('yt_confirm_public'))) return;
+        ytButton.disabled = true;
+        setStatus(t('yt_uploading'));
+        try {
+          const result = await api('/api/upload-youtube', {
+            job, name: c.name, title: ytTitle.value.trim(),
+            description: c.post_text || '', privacy: ytPrivacy.value,
+          });
+          ytLink.href = result.url;
+          ytLink.textContent = result.url;
+          ytLink.hidden = false;
+          setStatus(t('yt_done', { privacy: t(`yt_${result.privacy}`) }));
+        } catch (err) {
+          setStatus(err.message, true);
+          ytButton.disabled = false;
+        }
+      };
+      fig.append(v, cap, ...extras, emailForm, ytForm);
       box.appendChild(fig);
     });
     $('#results').hidden = false;

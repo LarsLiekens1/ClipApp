@@ -23,6 +23,7 @@ from delivery import (
     DeliveryError,
     InvalidRecipient,
     deliver_clip,
+    upload_youtube_short,
 )
 from video_analysis import add_chat_counts, analyze_video_info, chat_offsets
 from auto_clips import AutoClipError, loudness_per_second, suggest_clips
@@ -1288,33 +1289,48 @@ def upload_logo():
     return jsonify(ok=True)
 
 
-@app.post("/api/send-video")
-def send_video():
+def local_only(feature):
+    """Google-koppelingen (mailen, YouTube) alleen vanaf deze computer in de lokale app.
+    Geeft een foutantwoord terug, of None als het mag."""
     if os.environ.get("CLIPAPP_LOCAL_MODE") != "1":
-        return jsonify(error="E-mailen is alleen ingeschakeld in de lokale desktopapp."), 403
+        return jsonify(error=f"{feature} is alleen ingeschakeld in de lokale desktopapp."), 403
     try:
         if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
-            return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+            return jsonify(error=f"{feature} is alleen beschikbaar vanaf deze computer."), 403
     except ValueError:
-        return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
-
+        return jsonify(error=f"{feature} is alleen beschikbaar vanaf deze computer."), 403
     origin = request.headers.get("Origin")
     if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
         return jsonify(error="Ongeldige aanvraagbron."), 403
+    return None
 
-    data = request.get_json(silent=True) or {}
+
+def exported_video(data):
+    """Zoek een geëxporteerde clip van een taak. Geeft (pad, None) of (None, foutantwoord)."""
     job = data.get("job")
     name = data.get("name")
     if not isinstance(job, str):
-        return jsonify(error="De videotaak is ongeldig."), 400
+        return None, (jsonify(error="De videotaak is ongeldig."), 400)
     d = job_dir(job)
     if not isinstance(name, str) or not re.fullmatch(
         r"(?:clip_[0-9]{2}|bewerkt_[0-9]{6})\.mp4", name
     ):
-        return jsonify(error="Ongeldige videonaam."), 400
+        return None, (jsonify(error="Ongeldige videonaam."), 400)
     path = d / name
     if not path.is_file():
-        return jsonify(error="De video is niet gevonden."), 404
+        return None, (jsonify(error="De video is niet gevonden."), 404)
+    return path, None
+
+
+@app.post("/api/send-video")
+def send_video():
+    refused = local_only("E-mailen")
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    path, error = exported_video(data)
+    if error:
+        return error
 
     try:
         result = deliver_clip(path, data.get("recipient"))
@@ -1327,6 +1343,35 @@ def send_video():
         return jsonify(error=str(exc)), 502
 
     return jsonify(ok=True, delivery=result["delivery"])
+
+
+@app.post("/api/upload-youtube")
+def upload_youtube():
+    """Upload een clip als YouTube Short naar je eigen kanaal (standaard privé)."""
+    refused = local_only("Uploaden naar YouTube")
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    path, error = exported_video(data)
+    if error:
+        return error
+    privacy = data.get("privacy", "private")
+    if privacy not in ("private", "unlisted", "public"):
+        return jsonify(error="Kies privé, niet vermeld of openbaar."), 400
+    description = data.get("description") or ""
+    txt = path.with_suffix(".txt")
+    if not description and txt.exists():
+        description = txt.read_text(encoding="utf-8")
+    log(f"{path.name} uploaden naar YouTube ({privacy})...")
+    try:
+        result = upload_youtube_short(path, data.get("title") or "", description, privacy)
+    except DeliveryConfigurationError as exc:
+        return jsonify(error=str(exc)), 503
+    except DeliveryError as exc:
+        log(f"YouTube-upload mislukt: {exc}")
+        return jsonify(error=str(exc)), 502
+    log(f"Op YouTube gezet: {result['url']} ({result['privacy']})")
+    return jsonify(ok=True, **result)
 
 
 @app.post("/api/render")

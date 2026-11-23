@@ -210,6 +210,16 @@ Video mailen is optioneel en werkt alleen met de lokale desktopstart via `python
 
 Video's tot en met **17 MiB** worden als bijlage verstuurd. Voor grotere MP4-bestanden gebruikt ClipAPP Google Drive en deelt het bestand privé met het opgegeven e-mailadres; daarvoor moet ook de Drive API ingeschakeld zijn. De OAuth-tokens worden lokaal in de map `.clipapp` in je thuismap bewaard. Deel of commit je `.env`, OAuth-bestand of tokens niet.
 
+## Uploaden als YouTube Short
+
+Bij elke gemaakte clip kun je hem met **Upload als YouTube Short** op je eigen YouTube-kanaal zetten. Dit is **gratis**: het gebruikt de YouTube Data API met dezelfde Google-aanmelding als het mailen (alleen via `python start.py`).
+
+1. Volg stap 3 en 4 van [Video mailen](#video-mailen) en schakel in hetzelfde Google Cloud-project ook de **YouTube Data API v3** in. Daar zijn geen betaalgegevens of facturering voor nodig.
+2. Kies titel (standaard de caption) en zichtbaarheid: **Privé** (standaard), **Niet vermeld** of **Openbaar**. Bij openbaar vraagt de app eerst om bevestiging. De posttekst met hashtags wordt de beschrijving, en `#Shorts` wordt aan de titel toegevoegd.
+3. Bij het eerste gebruik vraagt Google toestemming om video's te uploaden.
+
+Beperkingen van de gratis API: een **beperkt aantal uploads per dag** (dagquotum; bij overschrijding krijg je een melding, er wordt nooit iets in rekening gebracht), en zolang je Google Cloud-app niet door Google is geverifieerd, zet YouTube uploads via de API op **privé**; je kunt ze daarna in YouTube Studio zelf openbaar maken. Automatisch posten op **TikTok** zit er niet in: TikTok staat dat alleen toe voor apps die TikTok zelf heeft goedgekeurd.
+
 ## Privacy en bestanden
 
 - Videoverwerking, cliprendering en ondertitelgeneratie gebeuren lokaal met FFmpeg en Whisper.
