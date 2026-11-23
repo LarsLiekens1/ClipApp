@@ -47,7 +47,7 @@ from colorama import Fore, Style, just_fix_windows_console
 just_fix_windows_console()
 os.environ["CLIPAPP_LOCAL_MODE"] = "1"
 
-from app import app
+from app import app, cleanup_work
 
 
 missing_tools = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
@@ -99,6 +99,7 @@ def open_browser():
 
 def main():
     print_banner()
+    cleanup_work()
     threading.Thread(target=open_browser, daemon=True).start()
     try:
         run_server()

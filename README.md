@@ -194,7 +194,7 @@ Video's tot en met **17 MiB** worden als bijlage verstuurd. Voor grotere MP4-bes
 
 - Videoverwerking, cliprendering en ondertitelgeneratie gebeuren lokaal met FFmpeg en Whisper.
 - De app maakt wel netwerkverbindingen: `yt-dlp` haalt videogegevens, comments of videofragmenten bij de bron op; de YouTube-speler wordt in de browser geladen. De interface gebruikt ook Google Fonts.
-- Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Ze worden niet automatisch na elke export verwijderd; verwijder ongewenste bestanden daar zelf om schijfruimte vrij te maken.
+- Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Bij het starten verwijdert de app taakmappen waar al **7 dagen** niets aan veranderd is. Download dus wat je wilt bewaren. Stel dit in met `CLIPAPP_KEEP_DAYS` in `.env` (`0` = nooit automatisch verwijderen).
 - In Docker staat `work/` in de container. Met `docker run --rm` verdwijnen die bestanden wanneer de container wordt verwijderd, tenzij je een volume voor `work/` koppelt.
 - E-mailen verstuurt het gekozen bestand via Google. Bestanden boven 17 MiB worden via Google Drive privé gedeeld met de ontvanger.
 - De Docker-/`app.py`-server heeft geen gebruikersaanmelding of toegangsbeheer en bindt standaard aan `0.0.0.0`. Stel hem niet zonder aanvullende toegangsbeveiliging publiek beschikbaar en verwerk er geen gevoelige bestanden mee.

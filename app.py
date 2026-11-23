@@ -185,6 +185,33 @@ def run_ffmpeg(cmd, length, cwd=None):
     show_bar(1.0)
 
 
+def cleanup_work(days=None):
+    """Verwijder taakmappen in work/ waar al `days` dagen niets aan veranderd is.
+    Standaard 7 dagen; zet CLIPAPP_KEEP_DAYS=0 om niets automatisch te verwijderen."""
+    if days is None:
+        try:
+            days = float(os.environ.get("CLIPAPP_KEEP_DAYS", "7"))
+        except ValueError:
+            days = 7.0
+    if days <= 0:
+        return 0
+    limit = time.time() - days * 86400
+    removed = 0
+    for d in WORK.iterdir():
+        if not d.is_dir() or not re.fullmatch(r"[0-9a-f]{12}", d.name):
+            continue                                   # alleen mappen die de app zelf maakt
+        try:
+            newest = max([d.stat().st_mtime] + [f.stat().st_mtime for f in d.rglob("*")])
+        except OSError:
+            continue
+        if newest < limit:
+            shutil.rmtree(d, ignore_errors=True)
+            removed += 1
+    if removed:
+        log(f"Opgeruimd: {removed} oude taakmap(pen) uit work/ (ouder dan {days:g} dagen).")
+    return removed
+
+
 def job_dir(job):
     """Geef de map van een job terug; alleen ids die wij zelf maken zijn toegestaan."""
     if not re.fullmatch(r"[0-9a-f]{12}", job):
@@ -1079,4 +1106,5 @@ def media(job, name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     print_startup_banner(port)
+    cleanup_work()
     app.run(host="0.0.0.0", port=port, threaded=True)
