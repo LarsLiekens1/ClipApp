@@ -148,6 +148,7 @@ Na de commentanalyse kun je bij het clip-exporteren **Caption bovenin** inschake
 - **Verticaal 9:16:** maak een formaat voor bijvoorbeeld Shorts of Reels.
 - **Geblurde achtergrond:** vul de verticale beeldruimte met een vervaagde versie van de video.
 - **Logo:** voeg bij verticale clips een PNG-, JPG- of WebP-logo toe.
+- Je gekozen opties (ook die van de TikTok-maker) worden in je browser onthouden voor de volgende keer.
 
 ## Tijdlijneditor
 

@@ -782,7 +782,6 @@ $('#load-form').addEventListener('submit', async e => {
     stopPreviewTracking();
     analysisData = null;
     suggestionMessage = null;
-    captionToggle.checked = false;
     updateCaptionState();
     syncAutoOptions();
     $('#comment-analysis-results').hidden = true;
@@ -1038,6 +1037,42 @@ $('#render-btn').onclick = async () => {
     btn.disabled = segments.length === 0;
   }
 };
+
+// --- instellingen onthouden (alleen in deze browser) ---
+const SETTINGS_KEY = 'clipapp_settings';
+// volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
+const REMEMBERED = ['#subs', '#lang', '#vertical', '#blur', '#caption-toggle', '#caption-position',
+  '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
+
+function saveSettings() {
+  const values = {};
+  for (const sel of REMEMBERED) {
+    const el = $(sel);
+    if (el) values[sel] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(values)); } catch (e) {}
+}
+
+function restoreSettings() {
+  let values = {};
+  try { values = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) {}
+  for (const sel of REMEMBERED) {
+    const el = $(sel);
+    if (!el || !(sel in values)) continue;
+    if (el.type === 'checkbox') el.checked = Boolean(values[sel]);
+    else if ([...el.options].some(o => o.value === values[sel])) el.value = values[sel];
+    if (sel === '#subs') updateSubsState();
+    if (sel === '#vertical') updateVerticalState();
+  }
+  updateVerticalState();               // blur uit als 9:16 uit staat
+  updateCaptionState();
+}
+
+restoreSettings();
+for (const sel of REMEMBERED) {
+  const el = $(sel);
+  if (el) el.addEventListener('change', saveSettings);
+}
 
 // Initialiseer taal bij laden van de pagina
 setLanguage(currentLang);
