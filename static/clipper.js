@@ -100,6 +100,9 @@ const I18N = {
     auto_title: "✨ Automatisch TikToks maken",
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
+    btn_upload_video: "Of kies een video van je computer",
+    msg_uploading: "Video uploaden... {pct}%",
+    msg_preparing: "Video voorbereiden...",
     subs_model_label: "Nauwkeurigheid:",
     opt_model_tiny: "Snelst (tiny)",
     opt_model_base: "Snel (base)",
@@ -214,6 +217,9 @@ const I18N = {
     auto_title: "✨ Make TikToks automatically",
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
+    btn_upload_video: "Or choose a video from your computer",
+    msg_uploading: "Uploading video... {pct}%",
+    msg_preparing: "Preparing video...",
     subs_model_label: "Accuracy:",
     opt_model_tiny: "Fastest (tiny)",
     opt_model_base: "Fast (base)",
@@ -784,43 +790,83 @@ $('#add').onclick = () => {
 };
 
 // --- video laden ---
+async function showLoadedVideo(data) {
+  job = data.job; duration = data.duration; segments = [];
+  stopPreviewTracking();
+  analysisData = null;
+  suggestionMessage = null;
+  updateCaptionState();
+  syncAutoOptions();
+  $('#comment-analysis-results').hidden = true;
+  $('#comment-analysis-status').textContent = '';
+  $('#analysis-suggestion-status').textContent = '';
+  $('#auto-status').textContent = '';
+  $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
+  groupCaption.hidden = false;
+  player.pause();
+  $('#editor').hidden = false;
+  $('#results').hidden = true;
+  let ok = true;
+  if (data.mode === 'youtube') {
+    player.hidden = true; $('#yt-wrap').hidden = false;
+    ctl = ytCtl;
+    ok = await startYouTube(data.id);
+  } else {
+    $('#yt-wrap').hidden = true; player.hidden = false;
+    ctl = videoCtl;
+    player.src = data.video;
+  }
+  renderSegments();
+  if (ok) setStatus(t('msg_loaded', { duration: fmt(duration) }));
+}
+
 $('#load-form').addEventListener('submit', async e => {
   e.preventDefault();
   $('#load-btn').disabled = true;
   setStatus(t('msg_searching'));
   try {
-    const data = await api('/api/load', { url: $('#url').value });
-    job = data.job; duration = data.duration; segments = [];
-    stopPreviewTracking();
-    analysisData = null;
-    suggestionMessage = null;
-    updateCaptionState();
-    syncAutoOptions();
-    $('#comment-analysis-results').hidden = true;
-    $('#comment-analysis-status').textContent = '';
-    $('#analysis-suggestion-status').textContent = '';
-    $('#auto-status').textContent = '';
-    $('#comment-analysis-panel').hidden = data.mode !== 'youtube';
-    groupCaption.hidden = false;
-    player.pause();
-    $('#editor').hidden = false;
-    $('#results').hidden = true;
-    let ok = true;
-    if (data.mode === 'youtube') {
-      player.hidden = true; $('#yt-wrap').hidden = false;
-      ctl = ytCtl;
-      ok = await startYouTube(data.id);
-    } else {
-      $('#yt-wrap').hidden = true; player.hidden = false;
-      ctl = videoCtl;
-      player.src = data.video;
-    }
-    renderSegments();
-    if (ok) setStatus(t('msg_loaded', { duration: fmt(duration) }));
+    await showLoadedVideo(await api('/api/load', { url: $('#url').value }));
   } catch (err) {
     setStatus(err.message, true);
   } finally {
     $('#load-btn').disabled = false;
+  }
+});
+
+// eigen videobestand: uploaden met voortgang, daarna hetzelfde als een link
+function uploadWithProgress(path, form, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', path);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || t('err_generic')));
+    };
+    xhr.onerror = () => reject(new Error(t('err_generic')));
+    xhr.send(form);
+  });
+}
+
+$('#local-video').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('#load-btn').disabled = true;
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const data = await uploadWithProgress('/api/upload-video', form, frac => {
+      setStatus(frac < 1 ? t('msg_uploading', { pct: Math.round(frac * 100) }) : t('msg_preparing'));
+    });
+    $('#url').value = '';
+    await showLoadedVideo(data);
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    $('#load-btn').disabled = false;
+    e.target.value = '';
   }
 });
 

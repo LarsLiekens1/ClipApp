@@ -55,7 +55,8 @@ WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "auto").lower()
 MAX_WORDS = 3                 # maximaal zoveel woorden tegelijk
 MAX_CHARS = 20                # of zoveel tekens, wat het eerst bereikt wordt
 
-VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov"}
+VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
+PLAYABLE_EXT = {".mp4", ".webm", ".m4v"}   # deze kan de browser zelf afspelen
 LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 LOGO_MAX = 10 * 1024 * 1024   # logo mag maximaal 10 MB zijn
 
@@ -196,6 +197,7 @@ def run_ffmpeg(cmd, length, cwd=None):
         elif line and not re.match(r"^[a-z_0-9]+=", line):
             errors.append(line)                # alles wat geen voortgangsregel is, is een foutmelding
     p.wait()
+    p.stdout.close()
     if p.returncode != 0:
         end_bar()
         error_text = "\n".join(errors)
@@ -552,6 +554,47 @@ def load():
     return jsonify(job=job, mode="preview", duration=duration, video=f"/media/{job}/{prev.name}")
 
 
+@app.post("/api/upload-video")
+def upload_video():
+    """Eigen videobestand gebruiken in de clipper (in plaats van een link)."""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify(error="Geen bestand ontvangen."), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in VIDEO_EXT:
+        return jsonify(error="Gebruik een MP4-, MOV-, MKV-, WebM- of M4V-bestand."), 400
+    job = uuid.uuid4().hex[:12]
+    d = WORK / job
+    d.mkdir()
+    path = d / f"source{ext}"
+    f.save(path)
+    try:
+        info = probe_media(path)
+        if info["kind"] != "video":
+            raise ValueError("geen beeld")
+    except Exception:
+        shutil.rmtree(d, ignore_errors=True)
+        return jsonify(error="Dit bestand kan ik niet lezen als video."), 400
+    preview = path
+    if ext not in PLAYABLE_EXT:                        # browser kan mov/mkv vaak niet afspelen
+        log(f"Preview maken voor {Path(f.filename).name}...")
+        preview = d / "preview.mp4"
+        try:
+            run(["ffmpeg", "-y", "-i", str(path), "-vf", "scale=-2:360", "-c:v", "libx264",
+                 "-preset", "veryfast", "-crf", "28", "-c:a", "aac", "-b:a", "96k",
+                 "-movflags", "+faststart", str(preview)])
+        except RuntimeError as e:
+            shutil.rmtree(d, ignore_errors=True)
+            return jsonify(error=f"Preview maken mislukt: {e}"), 500
+    (d / "meta.json").write_text(json.dumps({
+        "url": None, "local": path.name, "name": Path(f.filename).name,
+        "duration": info["duration"],
+    }), encoding="utf-8")
+    log(f"Eigen video geladen: {Path(f.filename).name} ({mmss(info['duration'])})")
+    return jsonify(job=job, mode="preview", duration=info["duration"],
+                   video=f"/media/{job}/{preview.name}")
+
+
 @app.post("/api/analyze-comments")
 def analyze_comments():
     payload = request.get_json(silent=True)
@@ -604,7 +647,8 @@ def analyze_audio(d, url, language, speech, model_name=None):
     if has_energy and (has_cues or not speech):
         return (saved["cues"] if speech else []), saved["energy"]
 
-    source = find_file(d, "preview")             # andere sites: de preview staat al lokaal
+    # eigen bestand of preview van een andere site: dan staat de video al lokaal
+    source = find_file(d, "source") or find_file(d, "preview")
     audio = None
     total = 3 if speech else 2
     try:
@@ -824,9 +868,15 @@ def render_job(data):
                 # alleen dit stuk van de originele video ophalen (hoge kwaliteit)
                 # force-keyframes zorgt dat het stuk precies op start en einde begint en stopt
                 t = step(1, n_steps, "Stuk ophalen van de bron...")
-                ytdlp("--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
-                      "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
-                      "-o", str(d / f"{stem}.%(ext)s"), url)
+                if meta.get("local"):                 # eigen bestand: stuk eruit knippen
+                    run(["ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(d / meta["local"]),
+                         "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a:0?",
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                         "-c:a", "aac", "-b:a", "192k", str(d / f"{stem}.mp4")])
+                else:
+                    ytdlp("--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
+                          "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
+                          "-o", str(d / f"{stem}.%(ext)s"), url)
                 part = find_file(d, stem)
                 if not part:
                     raise RuntimeError(f"stuk {i} kon niet worden opgehaald")

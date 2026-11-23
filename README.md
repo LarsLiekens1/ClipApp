@@ -103,7 +103,7 @@ Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `78
 
 ## Clipper
 
-1. Open **Clipper (URL)** en plak een videolink.
+1. Open **Clipper (URL)** en plak een videolink, of klik op **Of kies een video van je computer** om een eigen MP4-, MOV-, MKV-, WebM- of M4V-bestand te gebruiken.
 2. Laad de video. YouTube wordt in de pagina afgespeeld. Voor andere bronnen maakt de app een kleine preview om te kunnen zoeken en afspelen.
 3. Stel start- en eindtijden in en voeg fragmenten toe, of analyseer een YouTube-video om fragmenten voor te laten stellen.
 4. Controleer de selectie en kies eventuele exportopties.
