@@ -115,7 +115,7 @@ De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de 
 
 Laad een video en klik bovenaan op **Maak TikToks**. Alles draait lokaal en is gratis; er is geen API-sleutel nodig.
 
-1. De app meet de luidheid per seconde. Alleen als **Ondertitels maken** aanstaat, transcribeert Whisper ook de hele video; anders wordt Whisper niet geladen of gedownload. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
+1. De app meet de luidheid per seconde. Alleen als **Ondertitels maken** aanstaat, wordt ook de tekst van de hele video gebruikt; anders wordt Whisper niet geladen of gedownload. Bij YouTube-video's gebruikt de app dan eerst de ondertitels van YouTube zelf (handgemaakt of automatisch, in de gekozen taal of de taal van de video). Dat is veel sneller; alleen als die er niet zijn, transcribeert Whisper de video. Zet dit uit met **gebruik de ondertitels van YouTube zelf**. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
 2. Met spraakherkenning begint elke mogelijke clip op een zinsbegin en eindigt hij op een zinseinde (standaard **5 clips van 20–60 seconden**). Zonder spraakherkenning kiest de app op luidheid, comments en heatmap, en komt de caption alleen uit comments. Per clip telt de app:
    - **hook**: begint de clip met een vraag, uitroep, getal of typische hook-woorden (“waarom”, “niemand”, “geheim”, “wait”, …)?
    - **energie**: is het geluid luider dan normaal in de video (lachen, roepen)?

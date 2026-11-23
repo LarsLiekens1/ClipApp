@@ -549,6 +549,72 @@ def transcribe_words(wav, language, on_progress=None, model_name=None):
     return words
 
 
+def parse_json3_words(data):
+    """Lees YouTube-ondertitels (json3) als woorden [[start, einde, " woord"], ...].
+    Automatische ondertitels hebben een tijd per woord; handgemaakte alleen per regel,
+    dan verdelen we de regel gelijkmatig over de woorden."""
+    words = []
+    for ev in data.get("events") or []:
+        segs = ev.get("segs")
+        if not segs or ev.get("aAppend"):
+            continue
+        try:
+            t0 = float(ev.get("tStartMs", 0)) / 1000
+            dur = float(ev.get("dDurationMs", 0)) / 1000
+        except (TypeError, ValueError):
+            continue
+        parts = []
+        for seg in segs:
+            text = str(seg.get("utf8") or "")
+            if not text.strip():
+                continue
+            offset = float(seg.get("tOffsetMs", 0) or 0) / 1000
+            parts.append((t0 + offset, text))
+        if not parts:
+            continue
+        if len(parts) == 1 and len(parts[0][1].split()) > 1:     # hele regel in één stuk
+            tokens = parts[0][1].split()
+            step_len = (dur or len(tokens) * 0.35) / len(tokens)
+            parts = [(t0 + k * step_len, tok) for k, tok in enumerate(tokens)]
+        ev_end = t0 + (dur or 0.4 * len(parts))
+        for k, (start, text) in enumerate(parts):
+            end = parts[k + 1][0] if k + 1 < len(parts) else ev_end
+            for tok in text.split():
+                words.append([round(start, 3), round(max(start + 0.05, end), 3), " " + tok])
+    words.sort(key=lambda w: w[0])
+    for k in range(len(words) - 1):                    # nooit over het volgende woord heen
+        words[k][1] = min(words[k][1], max(words[k][0] + 0.05, words[k + 1][0]))
+    return words
+
+
+def youtube_words(d, url, language):
+    """Probeer de ondertitels van YouTube zelf (eerst handgemaakt, anders automatisch).
+    Geeft woorden terug, of None als er geen ondertitels in die taal zijn."""
+    if not language:
+        return None
+    stem = d / "ytsubs"
+    try:
+        ytdlp("--skip-download", "--write-subs", "--write-auto-subs",
+              "--sub-langs", f"{language},{language}-orig", "--sub-format", "json3",
+              "-o", str(stem) + ".%(ext)s", url)
+    except RuntimeError as e:
+        log(f"YouTube-ondertitels ophalen mislukt ({e}); Whisper wordt gebruikt.")
+        return None
+    files = sorted(d.glob("ytsubs*.json3"))
+    try:
+        for f in files:
+            try:
+                words = parse_json3_words(json.loads(f.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                continue
+            if words:
+                return words
+        return None
+    finally:
+        for f in files:
+            f.unlink(missing_ok=True)
+
+
 def cached_words(d, language, model_name):
     """Woorden uit het opgeslagen transcript van de hele video, als taal en model kloppen."""
     cache = d / "transcript.json"
@@ -699,7 +765,11 @@ def load():
     d.mkdir()
 
     def save_meta(dur):
-        (d / "meta.json").write_text(json.dumps({"url": url, "duration": dur}), encoding="utf-8")
+        (d / "meta.json").write_text(json.dumps({
+            "url": url, "duration": dur,
+            "youtube": info.get("extractor_key") == "Youtube",
+            "language": info.get("language"),          # gesproken taal volgens YouTube (kan ontbreken)
+        }), encoding="utf-8")
 
     if info.get("extractor_key") == "Youtube":
         if not duration:
@@ -799,7 +869,7 @@ def analyze_comments():
     return jsonify(result)
 
 
-def analyze_audio(d, url, language, speech, model_name=None):
+def analyze_audio(d, url, language, speech, model_name=None, youtube_language=None):
     """Meet de luidheid per seconde en (alleen als speech=True) transcribeer met Whisper.
     Zonder speech wordt Whisper niet geladen of gedownload.
     Het resultaat wordt bewaard in transcript.json, dus een tweede keer is direct klaar.
@@ -837,6 +907,13 @@ def analyze_audio(d, url, language, speech, model_name=None):
             step_done(t)
             cues = saved.get("cues") if has_cues else None
             words = saved.get("words") if has_cues else None
+            if speech and cues is None and youtube_language:
+                t = step(3, total, "Ondertitels van YouTube zelf ophalen...")
+                words = youtube_words(d, url, youtube_language)
+                if words:
+                    cues = make_cues(words)
+                    log(f"YouTube-ondertitels gebruikt ({len(words)} woorden); Whisper is niet nodig.")
+                step_done(t)
             if speech and cues is None:
                 t = step(3, total, "Hele video transcriberen (Whisper)... dit kan even duren")
                 words = transcribe_words(wav, language, show_bar, model_name)
@@ -894,7 +971,10 @@ def auto_clips_job(data):
     log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s, "
         f"{'met' if speech else 'zonder'} spraakherkenning) ===")
     try:
-        cues, energy = analyze_audio(d, meta["url"], language, speech, model_name)
+        yt_lang = None
+        if meta.get("youtube") and data.get("youtube_subs", True):
+            yt_lang = language or meta.get("language")
+        cues, energy = analyze_audio(d, meta["url"], language, speech, model_name, yt_lang)
         clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
                               bins=bins, comments=comments, energy=energy)
     except AutoClipError as e:

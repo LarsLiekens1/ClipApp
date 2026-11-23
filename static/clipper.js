@@ -101,6 +101,7 @@ const I18N = {
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
     btn_upload_video: "Of kies een video van je computer",
+    subs_youtube: "TikTok-maker: gebruik de ondertitels van YouTube zelf als die er zijn (veel sneller dan Whisper)",
     msg_uploading: "Video uploaden... {pct}%",
     msg_preparing: "Video voorbereiden...",
     subs_model_label: "Nauwkeurigheid:",
@@ -218,6 +219,7 @@ const I18N = {
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
     btn_upload_video: "Or choose a video from your computer",
+    subs_youtube: "TikTok maker: use YouTube's own subtitles when available (much faster than Whisper)",
     msg_uploading: "Uploading video... {pct}%",
     msg_preparing: "Preparing video...",
     subs_model_label: "Accuracy:",
@@ -927,6 +929,7 @@ $('#auto-btn').onclick = async () => {
       max_len: maxLen,
       language: $('#lang').value,
       whisper_model: $('#whisper-model').value,
+      youtube_subs: $('#youtube-subs').checked,
       speech: subsCheck.checked,
       bins: analysisData && Array.isArray(analysisData.bins) ? analysisData.bins : null,
       comments: analysisData && Array.isArray(analysisData.caption_comments)
@@ -1101,7 +1104,7 @@ $('#render-btn').onclick = async () => {
 // --- instellingen onthouden (alleen in deze browser) ---
 const SETTINGS_KEY = 'clipapp_settings';
 // volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
-const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#vertical', '#blur', '#caption-toggle', '#caption-position',
+const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#youtube-subs', '#vertical', '#blur', '#caption-toggle', '#caption-position',
   '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
 
 function saveSettings() {
