@@ -53,7 +53,7 @@ VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov"}
 LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 LOGO_MAX = 10 * 1024 * 1024   # logo mag maximaal 10 MB zijn
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=str(BASE / "static"), static_url_path="/static")
 # Geen limiet op de grootte van een request: de editor moet grote video's kunnen uploaden.
 # (De limiet voor het logo controleren we in upload_logo zelf.)
 app.config["MAX_CONTENT_LENGTH"] = None
