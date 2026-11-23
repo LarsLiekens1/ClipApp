@@ -11,7 +11,7 @@ RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1     HOST=0.0.0.0
 
 WORKDIR $HOME/app
 

@@ -1,3 +1,4 @@
+import hmac
 import json
 import ipaddress
 import os
@@ -12,7 +13,7 @@ import wave
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, request, send_file, send_from_directory
 from colorama import Fore, Style, just_fix_windows_console
 from dotenv import load_dotenv
 
@@ -59,6 +60,20 @@ app = Flask(__name__, static_folder=str(BASE / "static"), static_url_path="/stat
 app.config["MAX_CONTENT_LENGTH"] = None
 _model = None                 # Whisper-model wordt pas geladen bij de eerste keer ondertitelen
 _src_lock = threading.Lock()  # voorkomt dat twee uploads tegelijk sources.json overschrijven
+
+
+@app.before_request
+def require_password():
+    """Optioneel wachtwoord (CLIPAPP_PASSWORD) voor als de server bereikbaar is via het netwerk.
+    De browser vraagt er zelf om; de gebruikersnaam maakt niet uit."""
+    password = os.environ.get("CLIPAPP_PASSWORD", "")
+    if not password:
+        return None
+    auth = request.authorization
+    given = (auth.password or "") if auth else ""
+    if hmac.compare_digest(given.encode("utf-8"), password.encode("utf-8")):
+        return None
+    return Response("Wachtwoord vereist.", 401, {"WWW-Authenticate": 'Basic realm="ClipAPP"'})
 
 
 def print_startup_banner(port):
@@ -1107,4 +1122,9 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     print_startup_banner(port)
     cleanup_work()
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    # standaard alleen bereikbaar vanaf deze computer; Docker zet HOST=0.0.0.0
+    host = os.environ.get("HOST", "127.0.0.1")
+    if host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("CLIPAPP_PASSWORD"):
+        log("LET OP: de server is bereikbaar via het netwerk zonder wachtwoord. "
+            "Zet CLIPAPP_PASSWORD om dat te beveiligen.")
+    app.run(host=host, port=port, threaded=True)

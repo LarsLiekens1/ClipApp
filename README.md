@@ -99,7 +99,7 @@ docker build -t clipapp .
 docker run --rm -p 7860:7860 clipapp
 ```
 
-Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `7860` als `PORT` niet is ingesteld. Deze server bindt standaard aan alle netwerkinterfaces; zie [Privacy en bestanden](#privacy-en-bestanden) voordat je hem publiek bereikbaar maakt. De e-mailintegratie wordt alleen door de lokale startmethode ingeschakeld.
+Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `7860` als `PORT` niet is ingesteld. `python app.py` is standaard alleen bereikbaar vanaf je eigen computer (`HOST=127.0.0.1`); de Docker-image zet `HOST=0.0.0.0`. Zie [Privacy en bestanden](#privacy-en-bestanden) voordat je hem via een netwerk bereikbaar maakt. De e-mailintegratie wordt alleen door de lokale startmethode ingeschakeld.
 
 ## Clipper
 
@@ -198,7 +198,7 @@ Video's tot en met **17 MiB** worden als bijlage verstuurd. Voor grotere MP4-bes
 - Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Bij het starten verwijdert de app taakmappen waar al **7 dagen** niets aan veranderd is. Download dus wat je wilt bewaren. Stel dit in met `CLIPAPP_KEEP_DAYS` in `.env` (`0` = nooit automatisch verwijderen).
 - In Docker staat `work/` in de container. Met `docker run --rm` verdwijnen die bestanden wanneer de container wordt verwijderd, tenzij je een volume voor `work/` koppelt.
 - E-mailen verstuurt het gekozen bestand via Google. Bestanden boven 17 MiB worden via Google Drive privé gedeeld met de ontvanger.
-- De Docker-/`app.py`-server heeft geen gebruikersaanmelding of toegangsbeheer en bindt standaard aan `0.0.0.0`. Stel hem niet zonder aanvullende toegangsbeveiliging publiek beschikbaar en verwerk er geen gevoelige bestanden mee.
+- Zet `CLIPAPP_PASSWORD` in `.env` (of als omgevingsvariabele in Docker) zodra de server via een netwerk bereikbaar is; de browser vraagt dan om dat wachtwoord. Zonder wachtwoord kan iedereen die de server bereikt hem gebruiken. Verwerk er ook dan geen gevoelige bestanden mee.
 
 ## Opdrachtregelhulpmiddelen
 
