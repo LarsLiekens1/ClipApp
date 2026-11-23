@@ -1,3 +1,4 @@
+import hmac
 import json
 import ipaddress
 import os
@@ -12,7 +13,8 @@ import wave
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, request, send_file, send_from_directory
+from werkzeug.exceptions import HTTPException
 from colorama import Fore, Style, just_fix_windows_console
 from dotenv import load_dotenv
 
@@ -21,9 +23,11 @@ from delivery import (
     DeliveryError,
     InvalidRecipient,
     deliver_clip,
+    upload_youtube_short,
 )
-from video_analysis import analyze_video_info
+from video_analysis import add_chat_counts, analyze_video_info, chat_offsets
 from auto_clips import AutoClipError, loudness_per_second, suggest_clips
+from face_crop import face_crop_filter
 
 if getattr(sys, "frozen", False):
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
@@ -43,22 +47,45 @@ WORK = APP_DIR / "work"          # hier komen de clips en bewerkte bestanden (pe
 WORK.mkdir(exist_ok=True)
 
 # tiny / base / small / medium - groter = nauwkeuriger maar trager op CPU
+WHISPER_MODELS = ("tiny", "base", "small", "medium")
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
+if WHISPER_MODEL not in WHISPER_MODELS:
+    WHISPER_MODEL = "small"
+# auto = NVIDIA-GPU gebruiken als die er is (veel sneller), anders de processor
+WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "auto").lower()
 
 # Ondertitels komen in korte stukjes in beeld. Pas deze twee aan naar smaak:
 MAX_WORDS = 3                 # maximaal zoveel woorden tegelijk
 MAX_CHARS = 20                # of zoveel tekens, wat het eerst bereikt wordt
 
-VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov"}
+VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
+PLAYABLE_EXT = {".mp4", ".webm", ".m4v"}   # deze kan de browser zelf afspelen
 LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 LOGO_MAX = 10 * 1024 * 1024   # logo mag maximaal 10 MB zijn
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=str(BASE / "static"), static_url_path="/static")
 # Geen limiet op de grootte van een request: de editor moet grote video's kunnen uploaden.
 # (De limiet voor het logo controleren we in upload_logo zelf.)
 app.config["MAX_CONTENT_LENGTH"] = None
-_model = None                 # Whisper-model wordt pas geladen bij de eerste keer ondertitelen
+_models = {}                  # Whisper-modellen worden pas geladen bij de eerste keer ondertitelen
+_whisper_lock = threading.Lock()   # één transcriptie tegelijk: het model is groot en niet thread-safe
+_job_locks = {}               # per taak één export/analyse tegelijk, anders overschrijven ze elkaar
+_job_locks_guard = threading.Lock()
 _src_lock = threading.Lock()  # voorkomt dat twee uploads tegelijk sources.json overschrijven
+
+
+@app.before_request
+def require_password():
+    """Optioneel wachtwoord (CLIPAPP_PASSWORD) voor als de server bereikbaar is via het netwerk.
+    De browser vraagt er zelf om; de gebruikersnaam maakt niet uit."""
+    password = os.environ.get("CLIPAPP_PASSWORD", "")
+    if not password:
+        return None
+    auth = request.authorization
+    given = (auth.password or "") if auth else ""
+    if hmac.compare_digest(given.encode("utf-8"), password.encode("utf-8")):
+        return None
+    return Response("Wachtwoord vereist.", 401, {"WWW-Authenticate": 'Basic realm="ClipAPP"'})
 
 
 def print_startup_banner(port):
@@ -85,12 +112,66 @@ def print_startup_banner(port):
     print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
 
 
+# ---------- achtergrondtaken (voortgang + annuleren in de browser) ----------
+
+class TaskCancelled(Exception):
+    pass
+
+
+class Task:
+    def __init__(self, kind):
+        self.id = uuid.uuid4().hex[:16]
+        self.kind = kind
+        self.status = "running"          # running / done / error / cancelled
+        self.title = ""                  # bv. "Clip 2 van 5 (1:20 tot 1:50, 30 s)"
+        self.step = ""                   # bv. "Stap 2/3  Ondertitels maken (Whisper)..."
+        self.progress = None             # 0..1 van de huidige stap, of None
+        self.prefix = ""                 # bv. "Video 2 van 5" bij batch
+        self.result = None
+        self.error = None
+        self.cancel = threading.Event()
+        self.finished = None
+
+    def as_dict(self):
+        title = f"{self.prefix} · {self.title}" if self.prefix and self.title else (self.prefix or self.title)
+        return {"id": self.id, "kind": self.kind, "status": self.status, "title": title,
+                "step": self.step, "progress": self.progress, "result": self.result,
+                "error": self.error}
+
+
+_tasks = {}
+_tasks_lock = threading.Lock()
+_current = threading.local()
+
+
+def current_task():
+    return getattr(_current, "task", None)
+
+
+def check_cancel():
+    task = current_task()
+    if task and task.cancel.is_set():
+        raise TaskCancelled("Geannuleerd.")
+
+
 def run(cmd, cwd=None):
-    """Voer een commando uit; bij een fout krijg je de laatste regels van de foutmelding."""
+    """Voer een commando uit; bij een fout krijg je de laatste regels van de foutmelding.
+    Wordt de achtergrondtaak geannuleerd, dan wordt het commando gestopt."""
     # PYTHONUTF8 + utf-8: anders gaan titels met bijzondere tekens fout op Windows
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace",
-                       env={**os.environ, "PYTHONUTF8": "1"})
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         encoding="utf-8", errors="replace",
+                         env={**os.environ, "PYTHONUTF8": "1"})
+    while True:
+        try:
+            stdout, stderr = p.communicate(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            task = current_task()
+            if task and task.cancel.is_set():
+                p.kill()
+                p.communicate()
+                raise TaskCancelled("Geannuleerd.")
+    p = subprocess.CompletedProcess(cmd, p.returncode, stdout, stderr)
     if p.returncode != 0:
         # volledige fout in de terminal, zodat je kunt zien wat er precies misging
         print(f"\n{Fore.RED}[FOUT] {' '.join(str(c) for c in cmd[:8])} ...\n"
@@ -108,6 +189,12 @@ _bar_open = False
 def log(msg):
     """Regel met de tijd ervoor, zodat je in de terminal ziet wat er wanneer gebeurde."""
     end_bar()
+    task = current_task()
+    if task:
+        if msg.startswith("==="):
+            task.title, task.step, task.progress = msg.strip("= "), "", None
+        elif msg.startswith("Stap"):
+            task.step, task.progress = " ".join(msg.split()), None
     color = Fore.CYAN
     if "MISLUKT" in msg or "[FOUT]" in msg:
         color = Fore.RED
@@ -126,6 +213,9 @@ def show_bar(frac):
     """Voortgangsbalk die op dezelfde regel bijwerkt."""
     global _bar_open
     frac = max(0.0, min(1.0, frac))
+    task = current_task()
+    if task:
+        task.progress = frac
     n = int(frac * 20)
     print(
         f"\r           {Fore.CYAN}{'#' * n}{Fore.LIGHTBLACK_EX}{'-' * (20 - n)}"
@@ -144,6 +234,7 @@ def end_bar():
 
 
 def step(n, total, text):
+    check_cancel()
     log(f"Stap {n}/{total}  {text}")
     return time.time()
 
@@ -164,6 +255,12 @@ def run_ffmpeg(cmd, length, cwd=None):
                          text=True, encoding="utf-8", errors="replace")
     errors = []
     for line in p.stdout:
+        task = current_task()
+        if task and task.cancel.is_set():
+            p.kill()
+            p.wait()
+            p.stdout.close()
+            raise TaskCancelled("Geannuleerd.")
         line = line.strip()
         if line.startswith("out_time_us="):
             try:
@@ -173,6 +270,7 @@ def run_ffmpeg(cmd, length, cwd=None):
         elif line and not re.match(r"^[a-z_0-9]+=", line):
             errors.append(line)                # alles wat geen voortgangsregel is, is een foutmelding
     p.wait()
+    p.stdout.close()
     if p.returncode != 0:
         end_bar()
         error_text = "\n".join(errors)
@@ -183,6 +281,33 @@ def run_ffmpeg(cmd, length, cwd=None):
         )
         raise RuntimeError("\n".join(errors[-5:]) or "ffmpeg mislukt")
     show_bar(1.0)
+
+
+def cleanup_work(days=None):
+    """Verwijder taakmappen in work/ waar al `days` dagen niets aan veranderd is.
+    Standaard 7 dagen; zet CLIPAPP_KEEP_DAYS=0 om niets automatisch te verwijderen."""
+    if days is None:
+        try:
+            days = float(os.environ.get("CLIPAPP_KEEP_DAYS", "7"))
+        except ValueError:
+            days = 7.0
+    if days <= 0:
+        return 0
+    limit = time.time() - days * 86400
+    removed = 0
+    for d in WORK.iterdir():
+        if not d.is_dir() or not re.fullmatch(r"[0-9a-f]{12}", d.name):
+            continue                                   # alleen mappen die de app zelf maakt
+        try:
+            newest = max([d.stat().st_mtime] + [f.stat().st_mtime for f in d.rglob("*")])
+        except OSError:
+            continue
+        if newest < limit:
+            shutil.rmtree(d, ignore_errors=True)
+            removed += 1
+    if removed:
+        log(f"Opgeruimd: {removed} oude taakmap(pen) uit work/ (ouder dan {days:g} dagen).")
+    return removed
 
 
 def job_dir(job):
@@ -274,21 +399,26 @@ def ass_time(t):
 
 
 def make_cues(words):
-    """Groepeer woorden tot korte ondertitels: [[start, einde, tekst], ...]."""
+    """Groepeer woorden [[start, einde, woord], ...] tot korte ondertitels: [[start, einde, tekst], ...]."""
+    return [[a, b, "".join(w[2] for w in ws).strip()] for a, b, ws in group_words(words)]
+
+
+def group_words(words):
+    """Zelfde groepering als make_cues, maar met de losse woorden erbij: [[start, einde, woorden], ...]."""
     cues, cur = [], []
 
     def flush():
         if cur:
-            cues.append([cur[0].start, cur[-1].end, "".join(w.word for w in cur).strip()])
+            cues.append([cur[0][0], cur[-1][1], list(cur)])
             cur.clear()
 
     for w in words:
-        text = ("".join(x.word for x in cur) + w.word).strip()
-        pauze = bool(cur) and (w.start - cur[-1].end) > 0.6      # spreker pauzeert even
+        text = ("".join(x[2] for x in cur) + w[2]).strip()
+        pauze = bool(cur) and (w[0] - cur[-1][1]) > 0.6           # spreker pauzeert even
         if cur and (len(cur) >= MAX_WORDS or len(text) > MAX_CHARS or pauze):
             flush()
         cur.append(w)
-        if w.word.strip().endswith((".", "!", "?", ",")):         # einde zin of komma: nieuw stukje
+        if w[2].strip().endswith((".", "!", "?", ",")):           # einde zin of komma: nieuw stukje
             flush()
     flush()
 
@@ -333,6 +463,55 @@ def write_ass(path, cues, w, h, top=None):
             f.write(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Default,,0,0,0,,{text}\n")
 
 
+SUB_COLORS = {                 # ASS-kleuren zijn blauw-groen-rood (BBGGRR)
+    "yellow": "00E5FF", "green": "5AF254", "cyan": "F2E600",
+    "pink": "B469FF", "white": "FFFFFF",
+}
+
+
+def subtitle_size(style, w, h):
+    return round(min(w, h) * (0.085 if style == "tiktok" else 0.065))
+
+
+def _ass_text(text):
+    return text.replace("\\", "/").replace("{", "(").replace("}", ")")
+
+
+def write_tiktok_ass(path, groups, w, h, top=None, color="yellow", upper=True):
+    """TikTok-stijl: grote vette letters, dikke rand, het woord dat gezegd wordt licht op
+    in de gekozen kleur en is iets groter."""
+    size = subtitle_size("tiktok", w, h)
+    highlight = SUB_COLORS.get(color, SUB_COLORS["yellow"])
+    if top is not None:
+        align, margin_v = 8, top
+    else:
+        align, margin_v = 2, round(h * 0.14)       # iets hoger: onderin zitten TikTok-knoppen
+    header = (
+        "[Script Info]\nScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\nWrapStyle: 0\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: TikTok,Arial Black,{size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+        f"-1,0,0,0,100,100,1,0,1,{max(4, size // 9)},3,{align},70,70,{margin_v},1\n\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(header)
+        for g_start, g_end, ws in groups:
+            tokens = [_ass_text(w[2].strip().upper() if upper else w[2].strip()) for w in ws]
+            for k, w in enumerate(ws):
+                a = g_start if k == 0 else w[0]
+                b = ws[k + 1][0] if k + 1 < len(ws) else g_end
+                if b <= a:
+                    continue
+                line = " ".join(
+                    (f"{{\\c&H{highlight}&\\fscx112\\fscy112}}{tok}{{\\r}}" if i == k else tok)
+                    for i, tok in enumerate(tokens))
+                f.write(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},TikTok,,0,0,0,,{line}\n")
+
+
 def write_caption_ass(path, text, duration, w, h, position):
     positions = {
         "above": (8, round(h * 0.05)),
@@ -371,26 +550,416 @@ def read_wav(path):
     return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe(wav, language, on_progress=None):
-    """Zet spraak om naar korte ondertitelstukjes met faster-whisper (draait lokaal)."""
-    global _model
+def whisper_device():
+    """'cuda' als er een bruikbare NVIDIA-GPU is (en WHISPER_DEVICE niet 'cpu' is), anders 'cpu'."""
+    if WHISPER_DEVICE in ("cpu", "cuda"):
+        return WHISPER_DEVICE
+    try:
+        import ctranslate2
+        return "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+    except Exception:
+        return "cpu"
+
+
+def get_model(name=None):
+    """Laad een Whisper-model (één keer per modelnaam). Valt terug op de processor als de GPU faalt."""
+    name = name if name in WHISPER_MODELS else WHISPER_MODEL
+    if name in _models:
+        return _models[name]
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         raise RuntimeError("faster-whisper is niet geinstalleerd: pip install faster-whisper")
-    if _model is None:
-        log("Whisper-model laden (de eerste keer kan dit even duren)...")
-        _model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+    device = whisper_device()
+    log(f"Whisper-model '{name}' laden op {'GPU' if device == 'cuda' else 'processor'} "
+        "(de eerste keer wordt het gedownload, dat kan even duren)...")
+    try:
+        model = WhisperModel(name, device=device,
+                             compute_type="float16" if device == "cuda" else "int8")
+    except Exception as e:
+        if device != "cuda":
+            raise
+        log(f"GPU niet bruikbaar ({e}); Whisper draait nu op de processor.")
+        model = WhisperModel(name, device="cpu", compute_type="int8")
+    _models[name] = model
+    return model
+
+
+def transcribe(wav, language, on_progress=None, model_name=None):
+    """Zet spraak om naar korte ondertitelstukjes met faster-whisper (draait lokaal)."""
+    return make_cues(transcribe_words(wav, language, on_progress, model_name))
+
+
+def transcribe_words(wav, language, on_progress=None, model_name=None):
+    """Zet spraak om naar losse woorden met tijden: [[start, einde, woord], ...]."""
     audio = read_wav(wav)
     total = len(audio) / 16000                 # lengte van de audio in seconden
-    # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
-    segments, _ = _model.transcribe(audio, language=language or None, word_timestamps=True)
     words = []
-    for s in segments:                         # de segmenten komen een voor een binnen
-        words.extend(s.words or [])
-        if on_progress and total:
-            on_progress(s.end / total)
-    return make_cues(words)
+    with _whisper_lock:
+        model = get_model(model_name)
+        # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
+        segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True)
+        for s in segments:                     # de segmenten komen een voor een binnen
+            check_cancel()
+            words.extend([round(w.start, 3), round(w.end, 3), w.word] for w in (s.words or []))
+            if on_progress and total:
+                on_progress(s.end / total)
+    return words
+
+
+def parse_json3_words(data):
+    """Lees YouTube-ondertitels (json3) als woorden [[start, einde, " woord"], ...].
+    Automatische ondertitels hebben een tijd per woord; handgemaakte alleen per regel,
+    dan verdelen we de regel gelijkmatig over de woorden."""
+    words = []
+    for ev in data.get("events") or []:
+        segs = ev.get("segs")
+        if not segs or ev.get("aAppend"):
+            continue
+        try:
+            t0 = float(ev.get("tStartMs", 0)) / 1000
+            dur = float(ev.get("dDurationMs", 0)) / 1000
+        except (TypeError, ValueError):
+            continue
+        parts = []
+        for seg in segs:
+            text = str(seg.get("utf8") or "")
+            if not text.strip():
+                continue
+            offset = float(seg.get("tOffsetMs", 0) or 0) / 1000
+            parts.append((t0 + offset, text))
+        if not parts:
+            continue
+        if len(parts) == 1 and len(parts[0][1].split()) > 1:     # hele regel in één stuk
+            tokens = parts[0][1].split()
+            step_len = (dur or len(tokens) * 0.35) / len(tokens)
+            parts = [(t0 + k * step_len, tok) for k, tok in enumerate(tokens)]
+        ev_end = t0 + (dur or 0.4 * len(parts))
+        for k, (start, text) in enumerate(parts):
+            end = parts[k + 1][0] if k + 1 < len(parts) else ev_end
+            for tok in text.split():
+                words.append([round(start, 3), round(max(start + 0.05, end), 3), " " + tok])
+    words.sort(key=lambda w: w[0])
+    for k in range(len(words) - 1):                    # nooit over het volgende woord heen
+        words[k][1] = min(words[k][1], max(words[k][0] + 0.05, words[k + 1][0]))
+    return words
+
+
+def youtube_words(d, url, language):
+    """Probeer de ondertitels van YouTube zelf (eerst handgemaakt, anders automatisch).
+    Geeft woorden terug, of None als er geen ondertitels in die taal zijn."""
+    if not language:
+        return None
+    stem = d / "ytsubs"
+    try:
+        ytdlp("--skip-download", "--write-subs", "--write-auto-subs",
+              "--sub-langs", f"{language},{language}-orig", "--sub-format", "json3",
+              "-o", str(stem) + ".%(ext)s", url)
+    except RuntimeError as e:
+        log(f"YouTube-ondertitels ophalen mislukt ({e}); Whisper wordt gebruikt.")
+        return None
+    files = sorted(d.glob("ytsubs*.json3"))
+    try:
+        for f in files:
+            try:
+                words = parse_json3_words(json.loads(f.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                continue
+            if words:
+                return words
+        return None
+    finally:
+        for f in files:
+            f.unlink(missing_ok=True)
+
+
+# ---------- jump cuts: stiltes uit een clip knippen ----------
+
+SILENCE_DB = -32          # stiller dan dit telt als stilte
+SILENCE_MIN = 0.6         # alleen pauzes die minstens zo lang zijn
+SILENCE_PAD = 0.12        # aan beide kanten een klein beetje pauze laten staan
+
+
+def detect_silences(path):
+    """Stiltes in de audio als [(start, einde), ...] met FFmpeg silencedetect."""
+    p = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-vn",
+         "-af", f"silencedetect=noise={SILENCE_DB}dB:d={SILENCE_MIN}", "-f", "null", "-"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    silences, start = [], None
+    for line in p.stderr.splitlines():
+        m = re.search(r"silence_start: (-?[\d.]+)", line)
+        if m:
+            start = max(0.0, float(m.group(1)))
+        m = re.search(r"silence_end: ([\d.]+)", line)
+        if m and start is not None:
+            silences.append((start, float(m.group(1))))
+            start = None
+    if start is not None:                              # stilte loopt door tot het einde
+        silences.append((start, float("inf")))
+    return silences
+
+
+def keep_ranges(silences, length):
+    """Welke stukken blijven staan als je de stiltes (min. de marge) weghaalt."""
+    keeps, pos = [], 0.0
+    for a, b in silences:
+        a, b = a + SILENCE_PAD, min(b, length) - SILENCE_PAD
+        if b - a < 0.2:
+            continue
+        if a > pos:
+            keeps.append((pos, a))
+        pos = max(pos, b)
+    if length > pos:
+        keeps.append((pos, length))
+    return [(round(a, 3), round(b, 3)) for a, b in keeps if b - a > 0.05]
+
+
+def remap_time(t, keeps):
+    """Tijd in de originele clip -> tijd in de ingekorte clip (None als t weggeknipt is)."""
+    offset = 0.0
+    for a, b in keeps:
+        if t < a:
+            return None
+        if t <= b:
+            return offset + (t - a)
+        offset += b - a
+    return None
+
+
+def remap_words(words, keeps):
+    """Woordtijden aanpassen aan de ingekorte clip; woorden in weggeknipte stukken vallen weg."""
+    out = []
+    for s, e, w in words:
+        ns = remap_time(s, keeps)
+        ne = remap_time(e, keeps)
+        if ns is None and ne is None:
+            continue
+        ns = ne - 0.05 if ns is None else ns
+        ne = ns + 0.05 if ne is None or ne < ns else ne
+        out.append([max(0.0, ns), ne, w])
+    return out
+
+
+def cut_silences(part, out):
+    """Maak `out` zonder de stiltes uit `part`. Geeft de bewaarde stukken terug, of None
+    als er (bijna) niets te knippen valt."""
+    length = duration_of(part)
+    keeps = keep_ranges(detect_silences(part), length)
+    removed = length - sum(b - a for a, b in keeps)
+    if not keeps or removed < 0.3:
+        return None
+    expr = "+".join(f"between(t,{a},{b})" for a, b in keeps)
+    run_ffmpeg(["ffmpeg", "-y", "-i", str(part),
+                "-vf", f"select='{expr}',setpts=N/FRAME_RATE/TB",
+                "-af", f"aselect='{expr}',asetpts=N/SR/TB",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                "-c:a", "aac", "-b:a", "192k", str(out)], length - removed)
+    log(f"Jump cuts: {removed:.1f} s stilte weggeknipt.")
+    return keeps
+
+
+def cached_words(d, language, model_name):
+    """Woorden uit het opgeslagen transcript van de hele video, als taal en model kloppen."""
+    cache = d / "transcript.json"
+    if not cache.exists():
+        return None
+    try:
+        saved = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (saved.get("words") is None or saved.get("language") != (language or "")
+            or saved.get("model", WHISPER_MODEL) != (model_name or WHISPER_MODEL)):
+        return None
+    return saved["words"]
+
+
+def words_between(words, start, end):
+    """Woorden binnen [start, end], met tijden vanaf het begin van de clip."""
+    return [[max(0.0, s - start), min(e, end) - start, w]
+            for s, e, w in words if e > start and s < end]
+
+
+def job_lock(d):
+    """Het lock van één taakmap."""
+    with _job_locks_guard:
+        return _job_locks.setdefault(d.name, threading.Lock())
+
+
+class job_busy:
+    """Probeer een taak te claimen: `with job_busy(d) as ok:`; ok=False als er al iets loopt."""
+
+    def __init__(self, d):
+        self.lock = job_lock(d)
+        self.ok = False
+
+    def __enter__(self):
+        self.ok = self.lock.acquire(blocking=False)
+        return self.ok
+
+    def __exit__(self, *exc):
+        if self.ok:
+            self.lock.release()
+        return False
+
+
+BUSY_ERROR = "Er loopt al een export of analyse voor deze video. Wacht tot die klaar is."
+
+
+def _response_parts(resp):
+    if isinstance(resp, tuple):
+        resp, status = resp[0], resp[1]
+    else:
+        status = resp.status_code
+    return resp.get_json(silent=True) or {}, status
+
+
+def _run_task(task, fn, data, lock):
+    _current.task = task
+    try:
+        with app.app_context():
+            try:
+                body, status = _response_parts(fn(data))
+            except HTTPException as e:
+                body, status = {"error": e.description}, e.code
+        if task.cancel.is_set():
+            task.status = "cancelled"
+        elif status >= 400:
+            task.status, task.error = "error", body.get("error") or "Er ging iets mis."
+        else:
+            task.status, task.result = "done", body
+    except TaskCancelled:
+        task.status = "cancelled"
+    except Exception as e:                       # onverwachte fout: niet stil laten verdwijnen
+        log(f"MISLUKT: {e}")
+        task.status, task.error = "error", str(e)
+    finally:
+        _current.task = None
+        task.finished = time.time()
+        lock.release()
+
+
+def run_job(d, kind, fn, data):
+    """Voer een export/analyse uit. Met data["background"] gebeurt dat in een achtergrondtaak:
+    het antwoord is dan meteen {task: id} en de browser vraagt de voortgang op."""
+    lock = job_lock(d)
+    if not lock.acquire(blocking=False):
+        return jsonify(error=BUSY_ERROR), 409
+    if not data.get("background"):
+        try:
+            return fn(data)
+        finally:
+            lock.release()
+    task = Task(kind)
+    with _tasks_lock:
+        old = [k for k, t in _tasks.items() if t.finished and time.time() - t.finished > 3600]
+        for k in old:
+            del _tasks[k]
+        _tasks[task.id] = task
+    threading.Thread(target=_run_task, args=(task, fn, data, lock), daemon=True).start()
+    return jsonify(task=task.id), 202
+
+
+# ---------- batch: meerdere video's achter elkaar ----------
+
+BATCH_RENDER_KEYS = ("subtitles", "language", "whisper_model", "sub_style", "sub_color", "sub_upper",
+                     "jump_cuts", "face_crop", "vertical", "blur", "caption_position")
+
+
+def process_video(source, options):
+    """Eén video volledig automatisch: laden, beste momenten kiezen en clips maken.
+    `source` is een link of een pad naar een bestand. Geeft een samenvatting terug."""
+    is_url = str(source).startswith(("http://", "https://"))
+    body, status = load_url(str(source)) if is_url else load_file(source)
+    if status >= 400:
+        return {"source": str(source), "error": body.get("error")}
+    job = body["job"]
+    summary = {"source": str(source), "job": job, "title": body.get("title") or str(source)}
+
+    auto = {"job": job, "count": options.get("count", 5),
+            "min_len": options.get("min_len", 20), "max_len": options.get("max_len", 60),
+            "language": options.get("language"), "whisper_model": options.get("whisper_model"),
+            "youtube_subs": options.get("youtube_subs", True),
+            "speech": bool(options.get("subtitles"))}
+    body, status = _response_parts(auto_clips_job(auto))
+    if status >= 400:
+        return {**summary, "error": body.get("error")}
+    picks = body["clips"]
+
+    segments = [{
+        "start": c["start"], "end": c["end"],
+        "caption": c["caption"] if options.get("caption") else "",
+        "post_text": "\n\n".join(x for x in (c["description"], " ".join(c["hashtags"])) if x),
+    } for c in picks]
+    render = {"job": job, "segments": segments,
+              **{k: options[k] for k in BATCH_RENDER_KEYS if k in options}}
+    body, status = _response_parts(render_job(render))
+    if status >= 400:
+        return {**summary, "error": body.get("error")}
+    for clip, pick in zip(body["clips"], picks):
+        clip.update(caption=pick["caption"], score=pick["score"], reason=pick["reason"])
+    return {**summary, "clips": body["clips"]}
+
+
+def batch_job(data):
+    sources = [str(s).strip() for s in data.get("sources") or [] if str(s).strip()]
+    task = current_task()
+    results = []
+    for k, source in enumerate(sources, 1):
+        check_cancel()
+        if task:
+            task.prefix = f"Video {k} van {len(sources)}"
+        log(f"=== Batch: video {k} van {len(sources)}: {source} ===")
+        try:
+            results.append(process_video(source, data.get("options") or {}))
+        except TaskCancelled:
+            raise
+        except Exception as e:                   # één kapotte link stopt de rest niet
+            log(f"MISLUKT: {e}")
+            results.append({"source": source, "error": str(e)})
+    done = sum(1 for r in results if not r.get("error"))
+    log(f"ALLES KLAAR: batch met {len(sources)} video('s), {done} gelukt.")
+    return jsonify(results=results)
+
+
+@app.post("/api/batch")
+def batch():
+    """Meerdere links achter elkaar automatisch tot TikToks verwerken (altijd op de achtergrond)."""
+    data = request.get_json(silent=True) or {}
+    sources = data.get("sources")
+    if not isinstance(sources, list) or not any(str(s).strip() for s in sources):
+        return jsonify(error="Geef minstens één videolink op."), 400
+    if any(not str(s).strip().startswith(("http://", "https://")) for s in sources if str(s).strip()):
+        return jsonify(error="Elke regel moet een link zijn die met http of https begint."), 400
+    if len(sources) > 50:
+        return jsonify(error="Maximaal 50 links per batch."), 400
+    # één batch tegelijk (het lock hoort bij de naam "batch", er komt geen map)
+    return run_job(WORK / "batch", "batch", batch_job, {**data, "background": True})
+
+
+@app.get("/api/tasks/<task_id>")
+def task_status(task_id):
+    task = _tasks.get(task_id)
+    if not task:
+        return jsonify(error="Deze taak bestaat niet (meer)."), 404
+    return jsonify(task.as_dict())
+
+
+@app.post("/api/tasks/<task_id>/cancel")
+def task_cancel(task_id):
+    task = _tasks.get(task_id)
+    if not task:
+        return jsonify(error="Deze taak bestaat niet (meer)."), 404
+    task.cancel.set()
+    log("Annuleren gevraagd...")
+    return jsonify(ok=True)
+
+
+def whisper_model_from(data):
+    name = data.get("whisper_model") or WHISPER_MODEL
+    if name not in WHISPER_MODELS:
+        raise ValueError("Onbekend Whisper-model.")
+    return name
 
 
 # ---------- routes: clipper ----------
@@ -404,12 +973,20 @@ def index():
 def load():
     """Haal alleen informatie over de video op (duur, soort site). Er wordt niets groots gedownload."""
     url = (request.get_json(silent=True) or {}).get("url", "").strip()
+    body, status = load_url(url)
+    return jsonify(body), status
+
+
+def load_url(url):
+    """Maak een taak voor een videolink. Geeft (antwoord, statuscode) terug."""
     if not url.startswith(("http://", "https://")):
-        return jsonify(error="Geef een geldige link op (begint met http of https)."), 400
+        return {"error": "Geef een geldige link op (begint met http of https)."}, 400
     try:
         info = json.loads(ytdlp("-J", url))               # -J = alleen info, geen download
+    except TaskCancelled:
+        raise
     except Exception as e:
-        return jsonify(error=f"Laden mislukt: {e}"), 500
+        return {"error": f"Laden mislukt: {e}"}, 500
 
     duration = info.get("duration")
     job = uuid.uuid4().hex[:12]
@@ -417,14 +994,19 @@ def load():
     d.mkdir()
 
     def save_meta(dur):
-        (d / "meta.json").write_text(json.dumps({"url": url, "duration": dur}), encoding="utf-8")
+        (d / "meta.json").write_text(json.dumps({
+            "url": url, "duration": dur,
+            "youtube": info.get("extractor_key") == "Youtube",
+            "language": info.get("language"),          # gesproken taal volgens YouTube (kan ontbreken)
+        }), encoding="utf-8")
 
     if info.get("extractor_key") == "Youtube":
         if not duration:
-            return jsonify(error="Laden mislukt: kon de lengte van de video niet bepalen (livestream?)"), 500
+            return {"error": "Laden mislukt: kon de lengte van de video niet bepalen (livestream?)"}, 500
         # YouTube spelen we in de pagina zelf af: dan hoeft er niets gedownload te worden
         save_meta(duration)
-        return jsonify(job=job, mode="youtube", id=info["id"], duration=duration)
+        return {"job": job, "mode": "youtube", "id": info["id"], "duration": duration,
+                "title": info.get("title")}, 200
 
     # andere sites: een kleine preview in lage kwaliteit, alleen om in te kunnen kijken en spoelen
     try:
@@ -434,10 +1016,91 @@ def load():
         if not prev:
             raise RuntimeError("geen preview gevonden na het downloaden")
         duration = duration or duration_of(prev)          # veel sites geven zelf geen duur op
+    except TaskCancelled:
+        raise
     except Exception as e:
-        return jsonify(error=f"Laden mislukt: {e}"), 500
+        return {"error": f"Laden mislukt: {e}"}, 500
     save_meta(duration)
-    return jsonify(job=job, mode="preview", duration=duration, video=f"/media/{job}/{prev.name}")
+    return {"job": job, "mode": "preview", "duration": duration,
+            "video": f"/media/{job}/{prev.name}", "title": info.get("title")}, 200
+
+
+@app.post("/api/upload-video")
+def upload_video():
+    """Eigen videobestand gebruiken in de clipper (in plaats van een link)."""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify(error="Geen bestand ontvangen."), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in VIDEO_EXT:
+        return jsonify(error="Gebruik een MP4-, MOV-, MKV-, WebM- of M4V-bestand."), 400
+    job = uuid.uuid4().hex[:12]
+    d = WORK / job
+    d.mkdir()
+    path = d / f"source{ext}"
+    f.save(path)
+    body, status = register_local_video(d, path, Path(f.filename).name)
+    return jsonify(body), status
+
+
+def load_file(src):
+    """Maak een taak voor een videobestand op deze computer (kopie in work/)."""
+    src = Path(src)
+    ext = src.suffix.lower()
+    if ext not in VIDEO_EXT:
+        return {"error": f"{src.name}: gebruik een MP4-, MOV-, MKV-, WebM- of M4V-bestand."}, 400
+    job = uuid.uuid4().hex[:12]
+    d = WORK / job
+    d.mkdir()
+    path = d / f"source{ext}"
+    shutil.copyfile(src, path)
+    return register_local_video(d, path, src.name)
+
+
+def register_local_video(d, path, name):
+    """Controleer een opgeslagen videobestand, maak zo nodig een preview en schrijf meta.json."""
+    job, ext = d.name, path.suffix.lower()
+    try:
+        info = probe_media(path)
+        if info["kind"] != "video":
+            raise ValueError("geen beeld")
+    except Exception:
+        shutil.rmtree(d, ignore_errors=True)
+        return {"error": "Dit bestand kan ik niet lezen als video."}, 400
+    preview = path
+    if ext not in PLAYABLE_EXT:                        # browser kan mov/mkv vaak niet afspelen
+        log(f"Preview maken voor {name}...")
+        preview = d / "preview.mp4"
+        try:
+            run(["ffmpeg", "-y", "-i", str(path), "-vf", "scale=-2:360", "-c:v", "libx264",
+                 "-preset", "veryfast", "-crf", "28", "-c:a", "aac", "-b:a", "96k",
+                 "-movflags", "+faststart", str(preview)])
+        except RuntimeError as e:
+            shutil.rmtree(d, ignore_errors=True)
+            return {"error": f"Preview maken mislukt: {e}"}, 500
+    (d / "meta.json").write_text(json.dumps({
+        "url": None, "local": path.name, "name": name,
+        "duration": info["duration"],
+    }), encoding="utf-8")
+    log(f"Eigen video geladen: {name} ({mmss(info['duration'])})")
+    return {"job": job, "mode": "preview", "duration": info["duration"],
+            "video": f"/media/{job}/{preview.name}", "title": Path(name).stem}, 200
+
+
+def fetch_chat_offsets(url):
+    """Download de chat-replay van een afgelopen livestream en geef de tijden van de berichten."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        log("Live-chat van de stream ophalen (bij lange streams kan dit even duren)...")
+        ytdlp("--skip-download", "--write-subs", "--sub-langs", "live_chat",
+              "-o", str(Path(tmp) / "chat.%(ext)s"), url)
+        files = list(Path(tmp).glob("*.live_chat.json"))
+        if not files:
+            return []
+        with open(files[0], encoding="utf-8") as f:
+            offsets = chat_offsets(f)
+    log(f"Live-chat: {len(offsets)} berichten.")
+    return offsets
 
 
 @app.post("/api/analyze-comments")
@@ -466,7 +1129,11 @@ def analyze_comments():
             "--extractor-args", "youtube:max_comments=1000",
             url,
         )
-        result = analyze_video_info(json.loads(output))
+        info = json.loads(output)
+        result = analyze_video_info(info)
+        result["was_live"] = info.get("live_status") in ("was_live", "post_live") or bool(info.get("was_live"))
+        if payload.get("live_chat") and result["was_live"]:
+            add_chat_counts(result, fetch_chat_offsets(url))
     except RuntimeError as exc:
         return jsonify(error=f"YouTube-data ophalen mislukt: {exc}"), 502
     except json.JSONDecodeError:
@@ -476,7 +1143,7 @@ def analyze_comments():
     return jsonify(result)
 
 
-def analyze_audio(d, url, language, speech):
+def analyze_audio(d, url, language, speech, model_name=None, youtube_language=None):
     """Meet de luidheid per seconde en (alleen als speech=True) transcribeer met Whisper.
     Zonder speech wordt Whisper niet geladen of gedownload.
     Het resultaat wordt bewaard in transcript.json, dus een tweede keer is direct klaar.
@@ -486,11 +1153,14 @@ def analyze_audio(d, url, language, speech):
     if cache.exists():
         saved = json.loads(cache.read_text(encoding="utf-8"))
     has_energy = "energy" in saved
-    has_cues = saved.get("cues") is not None and saved.get("language") == (language or "")
+    model_name = model_name or WHISPER_MODEL
+    has_cues = (saved.get("cues") is not None and saved.get("language") == (language or "")
+                and saved.get("model", WHISPER_MODEL) == model_name)
     if has_energy and (has_cues or not speech):
         return (saved["cues"] if speech else []), saved["energy"]
 
-    source = find_file(d, "preview")             # andere sites: de preview staat al lokaal
+    # eigen bestand of preview van een andere site: dan staat de video al lokaal
+    source = find_file(d, "source") or find_file(d, "preview")
     audio = None
     total = 3 if speech else 2
     try:
@@ -510,9 +1180,18 @@ def analyze_audio(d, url, language, speech):
             energy = loudness_per_second(read_wav(wav))
             step_done(t)
             cues = saved.get("cues") if has_cues else None
+            words = saved.get("words") if has_cues else None
+            if speech and cues is None and youtube_language:
+                t = step(3, total, "Ondertitels van YouTube zelf ophalen...")
+                words = youtube_words(d, url, youtube_language)
+                if words:
+                    cues = make_cues(words)
+                    log(f"YouTube-ondertitels gebruikt ({len(words)} woorden); Whisper is niet nodig.")
+                step_done(t)
             if speech and cues is None:
                 t = step(3, total, "Hele video transcriberen (Whisper)... dit kan even duren")
-                cues = transcribe(wav, language, show_bar)
+                words = transcribe_words(wav, language, show_bar, model_name)
+                cues = make_cues(words)
                 end_bar()
                 step_done(t)
         finally:
@@ -522,7 +1201,9 @@ def analyze_audio(d, url, language, speech):
             audio.unlink(missing_ok=True)
     data = {"energy": energy}
     if cues is not None:
-        data.update(language=language or "", cues=cues)
+        data.update(language=language or "", cues=cues, model=model_name)
+        if words is not None:
+            data["words"] = words
     cache.write_text(json.dumps(data), encoding="utf-8")
     return (cues if speech else []), energy
 
@@ -531,6 +1212,11 @@ def analyze_audio(d, url, language, speech):
 def auto_clips():
     """Kies automatisch de beste TikTok-momenten, met hook-caption en posttekst (alles lokaal)."""
     data = request.get_json(silent=True) or {}
+    d = job_dir(str(data.get("job", "")))
+    return run_job(d, "auto-clips", auto_clips_job, data)
+
+
+def auto_clips_job(data):
     d = job_dir(str(data.get("job", "")))
     try:
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
@@ -550,17 +1236,27 @@ def auto_clips():
     bins = data.get("bins") if isinstance(data.get("bins"), list) else None
     comments = data.get("comments") if isinstance(data.get("comments"), list) else None
     speech = bool(data.get("speech"))
+    try:
+        model_name = whisper_model_from(data)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     t_all = time.time()
     log(f"=== Automatische TikToks ({count} clips, {min_len:.0f}-{max_len:.0f} s, "
         f"{'met' if speech else 'zonder'} spraakherkenning) ===")
     try:
-        cues, energy = analyze_audio(d, meta["url"], language, speech)
+        yt_lang = None
+        if meta.get("youtube") and data.get("youtube_subs", True):
+            yt_lang = language or meta.get("language")
+        cues, energy = analyze_audio(d, meta["url"], language, speech, model_name, yt_lang)
         clips = suggest_clips(cues, float(meta["duration"]), count, min_len, max_len,
                               bins=bins, comments=comments, energy=energy)
     except AutoClipError as e:
         log(f"MISLUKT: {e}")
         return jsonify(error=str(e)), 422
+    except TaskCancelled:
+        log("Geannuleerd.")
+        return jsonify(error="Geannuleerd."), 499
     except Exception as e:
         log(f"MISLUKT: {e}")
         return jsonify(error=f"Automatisch clippen mislukt: {e}"), 500
@@ -593,33 +1289,48 @@ def upload_logo():
     return jsonify(ok=True)
 
 
-@app.post("/api/send-video")
-def send_video():
+def local_only(feature):
+    """Google-koppelingen (mailen, YouTube) alleen vanaf deze computer in de lokale app.
+    Geeft een foutantwoord terug, of None als het mag."""
     if os.environ.get("CLIPAPP_LOCAL_MODE") != "1":
-        return jsonify(error="E-mailen is alleen ingeschakeld in de lokale desktopapp."), 403
+        return jsonify(error=f"{feature} is alleen ingeschakeld in de lokale desktopapp."), 403
     try:
         if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
-            return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
+            return jsonify(error=f"{feature} is alleen beschikbaar vanaf deze computer."), 403
     except ValueError:
-        return jsonify(error="E-mailen is alleen beschikbaar vanaf deze computer."), 403
-
+        return jsonify(error=f"{feature} is alleen beschikbaar vanaf deze computer."), 403
     origin = request.headers.get("Origin")
     if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
         return jsonify(error="Ongeldige aanvraagbron."), 403
+    return None
 
-    data = request.get_json(silent=True) or {}
+
+def exported_video(data):
+    """Zoek een geëxporteerde clip van een taak. Geeft (pad, None) of (None, foutantwoord)."""
     job = data.get("job")
     name = data.get("name")
     if not isinstance(job, str):
-        return jsonify(error="De videotaak is ongeldig."), 400
+        return None, (jsonify(error="De videotaak is ongeldig."), 400)
     d = job_dir(job)
     if not isinstance(name, str) or not re.fullmatch(
         r"(?:clip_[0-9]{2}|bewerkt_[0-9]{6})\.mp4", name
     ):
-        return jsonify(error="Ongeldige videonaam."), 400
+        return None, (jsonify(error="Ongeldige videonaam."), 400)
     path = d / name
     if not path.is_file():
-        return jsonify(error="De video is niet gevonden."), 404
+        return None, (jsonify(error="De video is niet gevonden."), 404)
+    return path, None
+
+
+@app.post("/api/send-video")
+def send_video():
+    refused = local_only("E-mailen")
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    path, error = exported_video(data)
+    if error:
+        return error
 
     try:
         result = deliver_clip(path, data.get("recipient"))
@@ -634,11 +1345,46 @@ def send_video():
     return jsonify(ok=True, delivery=result["delivery"])
 
 
+@app.post("/api/upload-youtube")
+def upload_youtube():
+    """Upload een clip als YouTube Short naar je eigen kanaal (standaard privé)."""
+    refused = local_only("Uploaden naar YouTube")
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    path, error = exported_video(data)
+    if error:
+        return error
+    privacy = data.get("privacy", "private")
+    if privacy not in ("private", "unlisted", "public"):
+        return jsonify(error="Kies privé, niet vermeld of openbaar."), 400
+    description = data.get("description") or ""
+    txt = path.with_suffix(".txt")
+    if not description and txt.exists():
+        description = txt.read_text(encoding="utf-8")
+    log(f"{path.name} uploaden naar YouTube ({privacy})...")
+    try:
+        result = upload_youtube_short(path, data.get("title") or "", description, privacy)
+    except DeliveryConfigurationError as exc:
+        return jsonify(error=str(exc)), 503
+    except DeliveryError as exc:
+        log(f"YouTube-upload mislukt: {exc}")
+        return jsonify(error=str(exc)), 502
+    log(f"Op YouTube gezet: {result['url']} ({result['privacy']})")
+    return jsonify(ok=True, **result)
+
+
 @app.post("/api/render")
 def render():
-    """Haal elk gekozen stuk apart op, maak (optioneel) ondertitels en (optioneel) 9:16."""
+    """Clips maken; per taak één export tegelijk."""
     data = request.get_json(silent=True) or {}
-    d = job_dir(data.get("job", ""))
+    d = job_dir(str(data.get("job", "")))
+    return run_job(d, "render", render_job, data)
+
+
+def render_job(data):
+    """Haal elk gekozen stuk apart op, maak (optioneel) ondertitels en (optioneel) 9:16."""
+    d = job_dir(str(data.get("job", "")))
     try:
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -649,6 +1395,17 @@ def render():
     vertical = bool(data.get("vertical"))
     blur = vertical and bool(data.get("blur"))     # geblurde achtergrond kan alleen bij 9:16
     language = data.get("language") or None
+    try:
+        model_name = whisper_model_from(data)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    sub_style = data.get("sub_style") or "classic"
+    sub_color = data.get("sub_color") or "yellow"
+    sub_upper = bool(data.get("sub_upper", True))
+    jump_cuts = bool(data.get("jump_cuts"))
+    face_crop = vertical and bool(data.get("face_crop"))
+    if sub_style not in ("classic", "tiktok") or sub_color not in SUB_COLORS:
+        return jsonify(error="Ongeldige stijl voor de ondertitels."), 400
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
     logo_file = find_logo(d) if use_logo else None
     caption_position = data.get("caption_position", "above")
@@ -656,6 +1413,7 @@ def render():
         return jsonify(error="Ongeldige positie voor de caption."), 400
     if use_logo and not logo_file:
         return jsonify(error="Het logo is niet gevonden. Kies het logo opnieuw."), 400
+    full_words = cached_words(d, language, model_name) if subs else None
     clips = []
     wanted = data.get("segments", [])
     t_all = time.time()
@@ -690,13 +1448,28 @@ def render():
                 # alleen dit stuk van de originele video ophalen (hoge kwaliteit)
                 # force-keyframes zorgt dat het stuk precies op start en einde begint en stopt
                 t = step(1, n_steps, "Stuk ophalen van de bron...")
-                ytdlp("--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
-                      "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
-                      "-o", str(d / f"{stem}.%(ext)s"), url)
+                if meta.get("local"):                 # eigen bestand: stuk eruit knippen
+                    run(["ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(d / meta["local"]),
+                         "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a:0?",
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                         "-c:a", "aac", "-b:a", "192k", str(d / f"{stem}.mp4")])
+                else:
+                    ytdlp("--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
+                          "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
+                          "-o", str(d / f"{stem}.%(ext)s"), url)
                 part = find_file(d, stem)
                 if not part:
                     raise RuntimeError(f"stuk {i} kon niet worden opgehaald")
                 step_done(t)
+                keeps = None
+                if jump_cuts:
+                    t = step(1, n_steps, "Stiltes eruit knippen (jump cuts)...")
+                    cut = d / f"{stem}_cut.mp4"
+                    keeps = cut_silences(part, cut)
+                    if keeps:
+                        part.unlink(missing_ok=True)
+                        part = cut.rename(d / f"{stem}.mp4")
+                    step_done(t)
                 sw, sh = video_size(part)
 
                 filters = []
@@ -704,7 +1477,18 @@ def render():
                 caption_filter = None
                 vid_bottom = None                     # onderkant van de video in het eindbeeld (9:16)
                 out_w, out_h, top = sw, sh, None      # maat van het eindbeeld + waar de tekst komt
-                if vertical:
+                crop = None
+                if face_crop:
+                    t = step(1, n_steps, "Gezicht zoeken voor de 9:16-crop...")
+                    crop = face_crop_filter(part, duration_of(part), sw, sh)
+                    if not crop:
+                        log("Geen duidelijk gezicht gevonden; " +
+                            ("geblurde achtergrond" if blur else "zwarte balken") + " gebruikt.")
+                    step_done(t)
+                if vertical and crop:
+                    out_w, out_h = 1080, 1920
+                    filters.append(crop)                  # beeld vult het hele scherm
+                elif vertical:
                     out_w, out_h = 1080, 1920
                     # hele video in beeld houden: verkleinen tot hij past
                     fit = "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2"
@@ -725,19 +1509,31 @@ def render():
                     if 1920 - bottom >= 300:              # genoeg zwart eronder: tekst begint daar
                         top = round(bottom) + 50
 
-                if subs:
+                if subs and full_words is not None:
+                    # de hele video is al getranscribeerd (TikTok-maker): stuk eruit knippen
+                    t = step(2, n_steps, "Ondertitels uit het opgeslagen transcript...")
+                    clip_words = words_between(full_words, start, end)
+                    if keeps:
+                        clip_words = remap_words(clip_words, keeps)
+                elif subs:
                     # geluid van dit stuk eruit halen en transcriberen
                     t = step(2, n_steps, "Ondertitels maken (Whisper)...")
                     wav = d / f"{name}.wav"
                     run(["ffmpeg", "-y", "-i", str(part), "-vn", "-ac", "1", "-ar", "16000",
                          "-c:a", "pcm_s16le", str(wav)])       # 16-bit, dat verwacht read_wav()
                     try:
-                        cues = transcribe(wav, language, show_bar)
+                        clip_words = transcribe_words(wav, language, show_bar, model_name)
                     finally:
                         wav.unlink(missing_ok=True)            # opruimen, ook als het misgaat
+                if subs:
+                    groups = group_words(clip_words)
+                    cues = [[a, b, "".join(w[2] for w in ws).strip()] for a, b, ws in groups]
                     if cues:                                    # geen spraak = geen ondertitels
                         write_srt(srt, cues)
-                        write_ass(ass, cues, out_w, out_h, top)
+                        if sub_style == "tiktok":
+                            write_tiktok_ass(ass, groups, out_w, out_h, top, sub_color, sub_upper)
+                        else:
+                            write_ass(ass, cues, out_w, out_h, top)
                         ass_filter = f"ass={name}.ass"
                     else:
                         log("Geen spraak gevonden, dus geen ondertitels.")
@@ -752,7 +1548,7 @@ def render():
                 logo_box = None
                 if logo_file:
                     if ass_filter and top is not None:
-                        y0 = top + round(min(out_w, out_h) * 0.065 * 1.7)    # onder de tekstregel
+                        y0 = top + round(subtitle_size(sub_style, out_w, out_h) * 1.7)  # onder de tekst
                     elif not ass_filter and vid_bottom is not None:
                         y0 = vid_bottom + 50
                     else:
@@ -967,9 +1763,15 @@ def video_graph(w, h, blur):
 
 @app.post("/api/editor/export")
 def editor_export():
-    """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
+    """Editor-export; per taak één tegelijk (ze delen de map ed_tmp)."""
     data = request.get_json(silent=True) or {}
-    d = job_dir(data.get("job", ""))
+    d = job_dir(str(data.get("job", "")))
+    return run_job(d, "editor-export", editor_export_job, data)
+
+
+def editor_export_job(data):
+    """Knip elk stuk uit zijn bronbestand, zet ze op dezelfde maat en plak ze aan elkaar."""
+    d = job_dir(str(data.get("job", "")))
     srcs = load_sources(d)
     items = []
     try:
@@ -1079,4 +1881,10 @@ def media(job, name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     print_startup_banner(port)
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    cleanup_work()
+    # standaard alleen bereikbaar vanaf deze computer; Docker zet HOST=0.0.0.0
+    host = os.environ.get("HOST", "127.0.0.1")
+    if host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("CLIPAPP_PASSWORD"):
+        log("LET OP: de server is bereikbaar via het netwerk zonder wachtwoord. "
+            "Zet CLIPAPP_PASSWORD om dat te beveiligen.")
+    app.run(host=host, port=port, threaded=True)

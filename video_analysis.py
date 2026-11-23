@@ -107,3 +107,40 @@ def analyze_video_info(info):
         "bins": bins,
         "caption_comments": caption_comments,
     }
+
+
+def chat_offsets(lines):
+    """Tijden (seconden) van chatberichten uit een yt-dlp live_chat.json (één JSON per regel)."""
+    import json
+    offsets = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            action = json.loads(line).get("replayChatItemAction")
+        except (ValueError, AttributeError):
+            continue
+        if not isinstance(action, dict):
+            continue
+        try:
+            seconds = int(action.get("videoOffsetTimeMsec")) / 1000
+        except (TypeError, ValueError):
+            continue
+        count = sum(1 for a in action.get("actions") or [] if "addChatItemAction" in a)
+        if seconds >= 0 and count:
+            offsets.extend([seconds] * count)
+    return offsets
+
+
+def add_chat_counts(result, offsets):
+    """Tel chatberichten per interval van een analyze_video_info-resultaat."""
+    bin_seconds = result["bin_seconds"]
+    for chat_bin in result["bins"]:
+        chat_bin["chat_messages"] = 0
+    for seconds in offsets:
+        index = int(seconds // bin_seconds)
+        if 0 <= index < len(result["bins"]):
+            result["bins"][index]["chat_messages"] += 1
+    result["chat_messages"] = sum(b["chat_messages"] for b in result["bins"])
+    return result

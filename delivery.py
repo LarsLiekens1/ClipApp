@@ -7,6 +7,8 @@ from pathlib import Path
 MAX_ATTACHMENT_BYTES = 17 * 1024 * 1024
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
+YOUTUBE_PRIVACY = ("private", "unlisted", "public")
 
 
 class InvalidRecipient(ValueError):
@@ -213,3 +215,61 @@ def deliver_clip(path, recipient):
             f"{exc} De video staat wel in Google Drive; gebruik deze link: {link}"
         ) from exc
     return {"delivery": "drive"}
+
+
+def upload_youtube_short(path, title, description="", privacy="private"):
+    """Upload een clip naar je eigen YouTube-kanaal (gratis via de YouTube Data API).
+    Standaard privé. Verticale video's tot 3 minuten worden door YouTube als Short getoond."""
+    path = Path(path)
+    if not path.is_file() or path.suffix.lower() != ".mp4":
+        raise DeliveryError("De MP4-video is niet gevonden.")
+    if privacy not in YOUTUBE_PRIVACY:
+        raise DeliveryError("Kies privé, niet vermeld of openbaar.")
+    title = " ".join(str(title or "").split()) or path.stem
+    if "#shorts" not in title.lower():
+        title = f"{title[:91].rstrip()} #Shorts"
+    title = title[:100]
+    description = str(description or "")[:4900]
+    try:
+        from google.auth.exceptions import GoogleAuthError
+        from httplib2 import HttpLib2Error
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+        from googleapiclient.http import MediaIoBaseUpload
+    except ImportError as exc:
+        raise DeliveryConfigurationError(
+            "YouTube API-ondersteuning ontbreekt. Start ClipAPP opnieuw om dependencies te installeren."
+        ) from exc
+
+    credentials = _google_credentials([YOUTUBE_UPLOAD_SCOPE], "google_youtube_token.json")
+    try:
+        service = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+        with path.open("rb") as video_file:           # bestand netjes sluiten (Windows)
+            request = service.videos().insert(
+                part="snippet,status",
+                body={
+                    "snippet": {"title": title, "description": description, "categoryId": "22"},
+                    "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+                },
+                media_body=MediaIoBaseUpload(video_file, mimetype="video/mp4",
+                                             chunksize=8 * 1024 * 1024, resumable=True),
+            )
+            response = None
+            while response is None:
+                _, response = request.next_chunk()
+        video_id = response.get("id")
+        if not video_id:
+            raise DeliveryError("YouTube gaf geen video-id terug.")
+        return {"id": video_id, "url": f"https://youtube.com/shorts/{video_id}",
+                "privacy": response.get("status", {}).get("privacyStatus", privacy)}
+    except DeliveryError:
+        raise
+    except HttpError as exc:
+        if "quota" in str(exc).lower():
+            raise DeliveryError(
+                "Het gratis dagquotum van de YouTube API is op. "
+                "Probeer het morgen opnieuw."
+            ) from exc
+        raise DeliveryError(f"Uploaden naar YouTube mislukt: {exc}") from exc
+    except (GoogleAuthError, HttpLib2Error, OSError, ValueError) as exc:
+        raise DeliveryError(f"Uploaden naar YouTube mislukt: {exc}") from exc

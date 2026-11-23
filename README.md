@@ -99,15 +99,15 @@ docker build -t clipapp .
 docker run --rm -p 7860:7860 clipapp
 ```
 
-Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `7860` als `PORT` niet is ingesteld. Deze server bindt standaard aan alle netwerkinterfaces; zie [Privacy en bestanden](#privacy-en-bestanden) voordat je hem publiek bereikbaar maakt. De e-mailintegratie wordt alleen door de lokale startmethode ingeschakeld.
+Open daarna <http://127.0.0.1:7860>. `python app.py` gebruikt eveneens poort `7860` als `PORT` niet is ingesteld. `python app.py` is standaard alleen bereikbaar vanaf je eigen computer (`HOST=127.0.0.1`); de Docker-image zet `HOST=0.0.0.0`. Zie [Privacy en bestanden](#privacy-en-bestanden) voordat je hem via een netwerk bereikbaar maakt. De e-mailintegratie wordt alleen door de lokale startmethode ingeschakeld.
 
 ## Clipper
 
-1. Open **Clipper (URL)** en plak een videolink.
+1. Open **Clipper (URL)** en plak een videolink, of klik op **Of kies een video van je computer** om een eigen MP4-, MOV-, MKV-, WebM- of M4V-bestand te gebruiken.
 2. Laad de video. YouTube wordt in de pagina afgespeeld. Voor andere bronnen maakt de app een kleine preview om te kunnen zoeken en afspelen.
 3. Stel start- en eindtijden in en voeg fragmenten toe, of analyseer een YouTube-video om fragmenten voor te laten stellen.
 4. Controleer de selectie en kies eventuele exportopties.
-5. Maak de clips en bekijk of download de resultaten.
+5. Maak de clips en bekijk of download de resultaten. Tijdens het maken zie je in de browser welke clip en stap bezig is, met een voortgangsbalk en een knop **Annuleren**.
 
 De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de videosite toestaat.
 
@@ -115,7 +115,7 @@ De beschikbare bronnen zijn afhankelijk van wat `yt-dlp` kan uitlezen en wat de 
 
 Laad een video en klik bovenaan op **Maak TikToks**. Alles draait lokaal en is gratis; er is geen API-sleutel nodig.
 
-1. De app meet de luidheid per seconde. Alleen als **Ondertitels maken** aanstaat, transcribeert Whisper ook de hele video; anders wordt Whisper niet geladen of gedownload. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
+1. De app meet de luidheid per seconde. Alleen als **Ondertitels maken** aanstaat, wordt ook de tekst van de hele video gebruikt; anders wordt Whisper niet geladen of gedownload. Bij YouTube-video's gebruikt de app dan eerst de ondertitels van YouTube zelf (handgemaakt of automatisch, in de gekozen taal of de taal van de video). Dat is veel sneller; alleen als die er niet zijn, transcribeert Whisper de video. Zet dit uit met **gebruik de ondertitels van YouTube zelf**. Het resultaat wordt per taak bewaard in `work/<taak>/transcript.json`, dus een tweede poging is direct klaar.
 2. Met spraakherkenning begint elke mogelijke clip op een zinsbegin en eindigt hij op een zinseinde (standaard **5 clips van 20–60 seconden**). Zonder spraakherkenning kiest de app op luidheid, comments en heatmap, en komt de caption alleen uit comments. Per clip telt de app:
    - **hook**: begint de clip met een vraag, uitroep, getal of typische hook-woorden (“waarom”, “niemand”, “geheim”, “wait”, …)?
    - **energie**: is het geluid luider dan normaal in de video (lachen, roepen)?
@@ -125,11 +125,28 @@ Laad een video en klik bovenaan op **Maak TikToks**. Alles draait lokaal en is g
 3. Per clip krijg je een **caption** (de sterkste hook-zin, of een populaire comment), een **posttekst met hashtags** uit de typische woorden van die clip, een score en de reden van de keuze. De captions kun je in de lijst aanpassen.
 4. Met **Meteen exporteren** (standaard aan) worden de clips direct gemaakt met de opties die jij hebt aangevinkt (ondertitels, 9:16, blur, caption); de app verandert zelf niets aan je keuzes. Bij elke clip staat de posttekst met een kopieerknop en als `.txt`-download.
 
+### Batch: meerdere video's in één keer
+
+**In de browser:** open bovenaan **📦 Batch**, plak één link per regel en klik op **Start batch**. Elke video wordt na elkaar geanalyseerd en omgezet in TikToks met dezelfde instellingen als de TikTok-maker. Per video zie je daarna de clips met downloadlinks.
+
+**Zonder browser** (handig om te automatiseren) gebruik je `batch.py`:
+
+```text
+python batch.py https://www.youtube.com/watch?v=...            # één link
+python batch.py links.txt --count 3 --subs --caption            # één link per regel
+python batch.py "C:\Video's\opnames" --face --jump-cuts        # alle video's in een map
+python batch.py "C:\Video's\inbox" --watch                     # map blijven bewaken
+```
+
+De clips en hun posttekst (`.txt`) komen in `clips_output/` (of `--out`). Met `--watch` wordt elke nieuwe video in de map automatisch verwerkt zodra hij klaar is met kopiëren. `python batch.py --help` toont alle opties.
+
 ### Comments, heatmap en clipvoorstellen
 
 De analysefunctie is bedoeld voor YouTube-video's. ClipAPP vraagt maximaal **1.000 comments** op en telt herkenbare tijdstempels in de commenttekst, zoals `1:23` en `1:02:03`. De tijdlijn wordt in intervallen ingedeeld; bij lange video's worden die intervallen groter.
 
 Als YouTube een kijkersheatmap beschikbaar stelt, toont de app daarnaast een **relatieve heatmapscore** per interval. Dat is geen absoluut aantal kijkers. Sommige video's hebben geen heatmap, geen toegankelijke comments of onvoldoende gegevens; in dat geval kan de analyse beperkt zijn.
+
+Bij een **afgelopen livestream** kun je ook **de live-chat analyseren** aanvinken. De app haalt dan de chat-replay op en telt per interval hoeveel berichten er werden gestuurd (oranje stippellijn in de grafiek en een extra kolom in de tabel). Drukke momenten in de chat tellen mee in de clipvoorstellen en in de TikTok-maker. Het ophalen van de chat kan bij lange streams enkele minuten duren.
 
 Na de analyse kun je clipvoorstellen genereren:
 
@@ -144,10 +161,13 @@ Na de commentanalyse kun je bij het clip-exporteren **Caption bovenin** inschake
 
 ### Exportopties van de Clipper
 
-- **Ondertitels:** optioneel, met automatische taalherkenning of Nederlands, Engels, Frans en Duits. De Whisper-modellen draaien lokaal; het gekozen model wordt bij het eerste gebruik gedownload.
+- **Ondertitels:** optioneel, met automatische taalherkenning of Nederlands, Engels, Frans en Duits. De Whisper-modellen draaien lokaal; het gekozen model wordt bij het eerste gebruik gedownload. Kies bij **Nauwkeurigheid** tussen `tiny` (snelst) en `medium` (nauwkeurigst). Bij **Stijl** kies je **TikTok (woord voor woord)**: grote vette letters waarbij het woord dat gezegd wordt oplicht in een kleur naar keuze (optioneel in hoofdletters), of **Klassiek** (witte tekst). Heb je een NVIDIA-videokaart met CUDA, dan gebruikt Whisper die automatisch en is het vele malen sneller (`WHISPER_DEVICE=cpu` in `.env` zet dat uit).
+- **Stiltes eruit knippen:** pauzes van meer dan ~0,6 seconde worden uit de clip geknipt (jump cuts), met een klein beetje marge zodat woorden niet worden afgekapt. De ondertitels schuiven automatisch mee.
 - **Verticaal 9:16:** maak een formaat voor bijvoorbeeld Shorts of Reels.
 - **Geblurde achtergrond:** vul de verticale beeldruimte met een vervaagde versie van de video.
+- **Volg het gezicht:** in plaats van balken of blur wordt het beeld ingezoomd tot het het hele 9:16-scherm vult, met het gezicht in beeld. De app kijkt elke 2 seconden waar het gezicht staat (lokaal met OpenCV) en stuurt alleen bij als het duidelijk verschuift. Staat er geen duidelijk gezicht in, dan valt hij terug op blur of balken.
 - **Logo:** voeg bij verticale clips een PNG-, JPG- of WebP-logo toe.
+- Je gekozen opties (ook die van de TikTok-maker) worden in je browser onthouden voor de volgende keer.
 
 ## Tijdlijneditor
 
@@ -190,14 +210,24 @@ Video mailen is optioneel en werkt alleen met de lokale desktopstart via `python
 
 Video's tot en met **17 MiB** worden als bijlage verstuurd. Voor grotere MP4-bestanden gebruikt ClipAPP Google Drive en deelt het bestand privé met het opgegeven e-mailadres; daarvoor moet ook de Drive API ingeschakeld zijn. De OAuth-tokens worden lokaal in de map `.clipapp` in je thuismap bewaard. Deel of commit je `.env`, OAuth-bestand of tokens niet.
 
+## Uploaden als YouTube Short
+
+Bij elke gemaakte clip kun je hem met **Upload als YouTube Short** op je eigen YouTube-kanaal zetten. Dit is **gratis**: het gebruikt de YouTube Data API met dezelfde Google-aanmelding als het mailen (alleen via `python start.py`).
+
+1. Volg stap 3 en 4 van [Video mailen](#video-mailen) en schakel in hetzelfde Google Cloud-project ook de **YouTube Data API v3** in. Daar zijn geen betaalgegevens of facturering voor nodig.
+2. Kies titel (standaard de caption) en zichtbaarheid: **Privé** (standaard), **Niet vermeld** of **Openbaar**. Bij openbaar vraagt de app eerst om bevestiging. De posttekst met hashtags wordt de beschrijving, en `#Shorts` wordt aan de titel toegevoegd.
+3. Bij het eerste gebruik vraagt Google toestemming om video's te uploaden.
+
+Beperkingen van de gratis API: een **beperkt aantal uploads per dag** (dagquotum; bij overschrijding krijg je een melding, er wordt nooit iets in rekening gebracht), en zolang je Google Cloud-app niet door Google is geverifieerd, zet YouTube uploads via de API op **privé**; je kunt ze daarna in YouTube Studio zelf openbaar maken. Automatisch posten op **TikTok** zit er niet in: TikTok staat dat alleen toe voor apps die TikTok zelf heeft goedgekeurd.
+
 ## Privacy en bestanden
 
 - Videoverwerking, cliprendering en ondertitelgeneratie gebeuren lokaal met FFmpeg en Whisper.
 - De app maakt wel netwerkverbindingen: `yt-dlp` haalt videogegevens, comments of videofragmenten bij de bron op; de YouTube-speler wordt in de browser geladen. De interface gebruikt ook Google Fonts.
-- Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Ze worden niet automatisch na elke export verwijderd; verwijder ongewenste bestanden daar zelf om schijfruimte vrij te maken.
+- Bestanden en resultaten worden per taak opgeslagen in `work/` in de projectmap. Bij het starten verwijdert de app taakmappen waar al **7 dagen** niets aan veranderd is. Download dus wat je wilt bewaren. Stel dit in met `CLIPAPP_KEEP_DAYS` in `.env` (`0` = nooit automatisch verwijderen).
 - In Docker staat `work/` in de container. Met `docker run --rm` verdwijnen die bestanden wanneer de container wordt verwijderd, tenzij je een volume voor `work/` koppelt.
 - E-mailen verstuurt het gekozen bestand via Google. Bestanden boven 17 MiB worden via Google Drive privé gedeeld met de ontvanger.
-- De Docker-/`app.py`-server heeft geen gebruikersaanmelding of toegangsbeheer en bindt standaard aan `0.0.0.0`. Stel hem niet zonder aanvullende toegangsbeveiliging publiek beschikbaar en verwerk er geen gevoelige bestanden mee.
+- Zet `CLIPAPP_PASSWORD` in `.env` (of als omgevingsvariabele in Docker) zodra de server via een netwerk bereikbaar is; de browser vraagt dan om dat wachtwoord. Zonder wachtwoord kan iedereen die de server bereikt hem gebruiken. Verwerk er ook dan geen gevoelige bestanden mee.
 
 ## Opdrachtregelhulpmiddelen
 
@@ -243,13 +273,15 @@ Of, op macOS en Linux:
 | Bestand of map | Doel |
 | --- | --- |
 | `app.py` | Flask-server, API-routes en media-export |
-| `index.html` | Interface voor de URL-clipper en commentanalyse |
-| `editor.html` | Interface voor de tijdlijneditor |
+| `index.html`, `static/clipper.*` | Interface (HTML, CSS, JS) voor de URL-clipper, commentanalyse en TikTok-maker |
+| `editor.html`, `static/editor.*` | Interface (HTML, CSS, JS) voor de tijdlijneditor |
+| `batch.py` | Opdrachtregel: links, bestanden of een map automatisch tot TikToks verwerken |
+| `face_crop.py` | Gezichtsdetectie voor de 9:16-crop die het gezicht volgt |
 | `auto_clips.py` | Automatische keuze van TikTok-momenten, captions en hashtags |
 | `video_analysis.py` | Verwerking van commenttijdstempels en heatmapintervallen |
 | `delivery.py` | Optionele Gmail- en Drive-integratie |
 | `start.py` | Lokale start, virtuele omgeving en controles |
-| `heatmap.py`, `chatpieken.py` | Losse opdrachtregelhulpmiddelen |
+| `heatmap.py`, `chatpieken.py` | Losse opdrachtregelhulpmiddelen (de live-chatanalyse zit nu ook in de app) |
 | `tests/` | Geautomatiseerde tests |
 | `work/` | Tijdelijke taakbestanden en exports |
 
