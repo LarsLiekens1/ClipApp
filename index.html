@@ -129,6 +129,12 @@
           </select>
         </div>
         <div class="auto-option">
+          <label class="auto-check" for="auto-jump-cuts">
+            <input type="checkbox" id="auto-jump-cuts" data-link="#jump-cuts">
+            <span data-i18n="jump_title">Stiltes eruit knippen</span>
+          </label>
+        </div>
+        <div class="auto-option">
           <label class="auto-check" for="auto-export">
             <input type="checkbox" id="auto-export" checked>
             <span data-i18n="auto_export">Meteen exporteren</span>
@@ -315,6 +321,17 @@
           <label class="opt-sub-toggle" for="youtube-subs" id="youtube-subs-row">
             <input type="checkbox" id="youtube-subs" checked>
             <span data-i18n="subs_youtube">TikTok-maker: gebruik de ondertitels van YouTube zelf als die er zijn (veel sneller dan Whisper)</span>
+          </label>
+        </div>
+
+        <!-- Jump cuts -->
+        <div class="opt-group" id="group-jumpcuts">
+          <label class="opt-main-toggle" for="jump-cuts">
+            <input type="checkbox" id="jump-cuts">
+            <div class="opt-toggle-content">
+              <span class="opt-toggle-title" data-i18n="jump_title">Stiltes eruit knippen</span>
+              <span class="opt-toggle-desc" data-i18n="jump_desc">Jump cuts: pauzes in de clip worden automatisch weggeknipt voor een sneller tempo</span>
+            </div>
           </label>
         </div>
 

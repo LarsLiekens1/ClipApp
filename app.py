@@ -669,6 +669,92 @@ def youtube_words(d, url, language):
             f.unlink(missing_ok=True)
 
 
+# ---------- jump cuts: stiltes uit een clip knippen ----------
+
+SILENCE_DB = -32          # stiller dan dit telt als stilte
+SILENCE_MIN = 0.6         # alleen pauzes die minstens zo lang zijn
+SILENCE_PAD = 0.12        # aan beide kanten een klein beetje pauze laten staan
+
+
+def detect_silences(path):
+    """Stiltes in de audio als [(start, einde), ...] met FFmpeg silencedetect."""
+    p = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-vn",
+         "-af", f"silencedetect=noise={SILENCE_DB}dB:d={SILENCE_MIN}", "-f", "null", "-"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    silences, start = [], None
+    for line in p.stderr.splitlines():
+        m = re.search(r"silence_start: (-?[\d.]+)", line)
+        if m:
+            start = max(0.0, float(m.group(1)))
+        m = re.search(r"silence_end: ([\d.]+)", line)
+        if m and start is not None:
+            silences.append((start, float(m.group(1))))
+            start = None
+    if start is not None:                              # stilte loopt door tot het einde
+        silences.append((start, float("inf")))
+    return silences
+
+
+def keep_ranges(silences, length):
+    """Welke stukken blijven staan als je de stiltes (min. de marge) weghaalt."""
+    keeps, pos = [], 0.0
+    for a, b in silences:
+        a, b = a + SILENCE_PAD, min(b, length) - SILENCE_PAD
+        if b - a < 0.2:
+            continue
+        if a > pos:
+            keeps.append((pos, a))
+        pos = max(pos, b)
+    if length > pos:
+        keeps.append((pos, length))
+    return [(round(a, 3), round(b, 3)) for a, b in keeps if b - a > 0.05]
+
+
+def remap_time(t, keeps):
+    """Tijd in de originele clip -> tijd in de ingekorte clip (None als t weggeknipt is)."""
+    offset = 0.0
+    for a, b in keeps:
+        if t < a:
+            return None
+        if t <= b:
+            return offset + (t - a)
+        offset += b - a
+    return None
+
+
+def remap_words(words, keeps):
+    """Woordtijden aanpassen aan de ingekorte clip; woorden in weggeknipte stukken vallen weg."""
+    out = []
+    for s, e, w in words:
+        ns = remap_time(s, keeps)
+        ne = remap_time(e, keeps)
+        if ns is None and ne is None:
+            continue
+        ns = ne - 0.05 if ns is None else ns
+        ne = ns + 0.05 if ne is None or ne < ns else ne
+        out.append([max(0.0, ns), ne, w])
+    return out
+
+
+def cut_silences(part, out):
+    """Maak `out` zonder de stiltes uit `part`. Geeft de bewaarde stukken terug, of None
+    als er (bijna) niets te knippen valt."""
+    length = duration_of(part)
+    keeps = keep_ranges(detect_silences(part), length)
+    removed = length - sum(b - a for a, b in keeps)
+    if not keeps or removed < 0.3:
+        return None
+    expr = "+".join(f"between(t,{a},{b})" for a, b in keeps)
+    run_ffmpeg(["ffmpeg", "-y", "-i", str(part),
+                "-vf", f"select='{expr}',setpts=N/FRAME_RATE/TB",
+                "-af", f"aselect='{expr}',asetpts=N/SR/TB",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                "-c:a", "aac", "-b:a", "192k", str(out)], length - removed)
+    log(f"Jump cuts: {removed:.1f} s stilte weggeknipt.")
+    return keeps
+
+
 def cached_words(d, language, model_name):
     """Woorden uit het opgeslagen transcript van de hele video, als taal en model kloppen."""
     cache = d / "transcript.json"
@@ -1138,6 +1224,7 @@ def render_job(data):
     sub_style = data.get("sub_style") or "classic"
     sub_color = data.get("sub_color") or "yellow"
     sub_upper = bool(data.get("sub_upper", True))
+    jump_cuts = bool(data.get("jump_cuts"))
     if sub_style not in ("classic", "tiktok") or sub_color not in SUB_COLORS:
         return jsonify(error="Ongeldige stijl voor de ondertitels."), 400
     use_logo = vertical and bool(data.get("logo"))   # logo kan alleen bij 9:16
@@ -1195,6 +1282,15 @@ def render_job(data):
                 if not part:
                     raise RuntimeError(f"stuk {i} kon niet worden opgehaald")
                 step_done(t)
+                keeps = None
+                if jump_cuts:
+                    t = step(1, n_steps, "Stiltes eruit knippen (jump cuts)...")
+                    cut = d / f"{stem}_cut.mp4"
+                    keeps = cut_silences(part, cut)
+                    if keeps:
+                        part.unlink(missing_ok=True)
+                        part = cut.rename(d / f"{stem}.mp4")
+                    step_done(t)
                 sw, sh = video_size(part)
 
                 filters = []
@@ -1227,6 +1323,8 @@ def render_job(data):
                     # de hele video is al getranscribeerd (TikTok-maker): stuk eruit knippen
                     t = step(2, n_steps, "Ondertitels uit het opgeslagen transcript...")
                     clip_words = words_between(full_words, start, end)
+                    if keeps:
+                        clip_words = remap_words(clip_words, keeps)
                 elif subs:
                     # geluid van dit stuk eruit halen en transcriberen
                     t = step(2, n_steps, "Ondertitels maken (Whisper)...")

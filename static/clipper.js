@@ -101,6 +101,8 @@ const I18N = {
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
     btn_upload_video: "Of kies een video van je computer",
+    jump_title: "Stiltes eruit knippen",
+    jump_desc: "Jump cuts: pauzes in de clip worden automatisch weggeknipt voor een sneller tempo",
     subs_style_label: "Stijl:",
     subs_color_label: "Kleur",
     opt_style_tiktok: "TikTok (woord voor woord)",
@@ -229,6 +231,8 @@ const I18N = {
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
     btn_upload_video: "Or choose a video from your computer",
+    jump_title: "Cut out silences",
+    jump_desc: "Jump cuts: pauses in the clip are removed automatically for a faster pace",
     subs_style_label: "Style:",
     subs_color_label: "Color",
     opt_style_tiktok: "TikTok (word by word)",
@@ -1032,6 +1036,7 @@ $('#render-btn').onclick = async () => {
       sub_style: $('#sub-style').value,
       sub_color: $('#sub-color').value,
       sub_upper: $('#sub-upper').checked,
+      jump_cuts: $('#jump-cuts').checked,
       vertical: $('#vertical').checked,
       blur: $('#blur').checked,
       logo: hasLogo,
@@ -1132,7 +1137,7 @@ $('#render-btn').onclick = async () => {
 // --- instellingen onthouden (alleen in deze browser) ---
 const SETTINGS_KEY = 'clipapp_settings';
 // volgorde telt: 9:16 voor blur, want blur kan alleen aan als 9:16 aanstaat
-const REMEMBERED = ['#subs', '#lang', '#whisper-model', '#youtube-subs', '#sub-style', '#sub-color', '#sub-upper', '#vertical', '#blur', '#caption-toggle', '#caption-position',
+const REMEMBERED = ['#jump-cuts', '#subs', '#lang', '#whisper-model', '#youtube-subs', '#sub-style', '#sub-color', '#sub-upper', '#vertical', '#blur', '#caption-toggle', '#caption-position',
   '#auto-count', '#auto-length', '#auto-export', '#analysis-clip-count', '#analysis-clip-duration'];
 
 function saveSettings() {
