@@ -749,7 +749,22 @@
   #group-caption[hidden] { display: none; }
   .auto-box { border-color: var(--primary, #7c3aed); }
   .auto-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.5rem; }
-  .auto-check { display: flex; align-items: center; gap: 0.5rem; flex-direction: row; }
+  .auto-options {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px; margin-top: 14px;
+  }
+  .auto-option {
+    display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+    border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: 10px;
+  }
+  .auto-option label.auto-check {
+    display: flex; flex-direction: row; align-items: center; gap: 8px;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--text-secondary);
+  }
+  .auto-option label.auto-check input { width: 16px; height: 16px; margin: 0; flex: none; }
+  .auto-option.disabled { opacity: 0.5; }
+  .auto-option select:disabled { opacity: 0.6; }
+  .auto-go { margin-top: 14px; }
   .segment-caption {
     width: 100%; margin-top: 0.4rem; font-size: 0.85rem;
   }
@@ -1049,12 +1064,53 @@
             <option value="45-90">45–90 s</option>
           </select>
         </label>
-        <label class="auto-check" for="auto-export">
-          <input type="checkbox" id="auto-export" checked>
-          <span data-i18n="auto_export">Meteen exporteren met de opties hieronder</span>
-        </label>
-        <button type="button" class="primary" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
       </div>
+      <div class="auto-options">
+        <div class="auto-option">
+          <label class="auto-check" for="auto-subs">
+            <input type="checkbox" id="auto-subs" data-link="#subs">
+            <span data-i18n="subs_title">Ondertitels maken</span>
+          </label>
+          <select id="auto-lang" data-link="#lang" aria-label="Taal van de video" data-i18n-aria-label="subs_lang_label">
+            <option value="" data-i18n="opt_lang_auto">Automatisch herkennen</option>
+            <option value="nl" data-i18n="opt_lang_nl">Nederlands</option>
+            <option value="en" data-i18n="opt_lang_en">Engels</option>
+            <option value="fr" data-i18n="opt_lang_fr">Frans</option>
+            <option value="de" data-i18n="opt_lang_de">Duits</option>
+          </select>
+        </div>
+        <div class="auto-option">
+          <label class="auto-check" for="auto-vertical">
+            <input type="checkbox" id="auto-vertical" data-link="#vertical">
+            <span data-i18n="vert_title">Verticaal 9:16 formaat</span>
+          </label>
+        </div>
+        <div class="auto-option">
+          <label class="auto-check" for="auto-blur">
+            <input type="checkbox" id="auto-blur" data-link="#blur">
+            <span data-i18n="auto_blur">Geblurde achtergrond</span>
+          </label>
+        </div>
+        <div class="auto-option">
+          <label class="auto-check" for="auto-caption">
+            <input type="checkbox" id="auto-caption" data-link="#caption-toggle">
+            <span data-i18n="auto_caption">Caption bovenin</span>
+          </label>
+          <select id="auto-caption-position" data-link="#caption-position" aria-label="Positie caption" data-i18n-aria-label="caption_position">
+            <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
+            <option value="top" data-i18n="caption_top">Bovenin de video</option>
+            <option value="center" data-i18n="caption_center">Midden in beeld</option>
+            <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
+          </select>
+        </div>
+        <div class="auto-option">
+          <label class="auto-check" for="auto-export">
+            <input type="checkbox" id="auto-export" checked>
+            <span data-i18n="auto_export">Meteen exporteren</span>
+          </label>
+        </div>
+      </div>
+      <button type="button" class="primary auto-go" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
       <p class="auto-hint" data-i18n="auto_hint">Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.</p>
       <p id="auto-status" role="status" aria-live="polite"></p>
     </div>
@@ -1362,7 +1418,9 @@ const I18N = {
     err_logo_upload: "Logo uploaden mislukt.",
     auto_title: "✨ Automatisch TikToks maken",
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
-    auto_export: "Meteen exporteren met de opties hieronder",
+    auto_export: "Meteen exporteren",
+    auto_blur: "Geblurde achtergrond",
+    auto_caption: "Caption bovenin",
     auto_hint: "Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.",
     auto_button: "Maak TikToks",
     auto_working: "Video wordt geanalyseerd op de beste momenten. Bij lange video's kan dit enkele minuten duren...",
@@ -1469,7 +1527,9 @@ const I18N = {
     err_logo_upload: "Failed to upload logo.",
     auto_title: "✨ Make TikToks automatically",
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
-    auto_export: "Export right away with the options below",
+    auto_export: "Export right away",
+    auto_blur: "Blurred background",
+    auto_caption: "Caption on top",
     auto_hint: "Tip: turn on 'Create subtitles' for smarter picks based on what is said (uses Whisper). Without subtitles the app picks on loudness and comments.",
     auto_button: "Make TikToks",
     auto_working: "Analysing the video for the best moments. Long videos can take a few minutes...",
@@ -1993,6 +2053,30 @@ function updateCaptionState() {
 }
 captionToggle.addEventListener('change', updateCaptionState);
 
+// Het TikTok-paneel heeft eigen knoppen die gekoppeld zijn aan de opties onderaan.
+const autoLinks = [...document.querySelectorAll('#auto-panel [data-link]')]
+  .map(el => ({ el, target: $(el.dataset.link) }));
+
+function syncAutoOptions() {
+  for (const { el, target } of autoLinks) {
+    if (el.type === 'checkbox') el.checked = target.checked;
+    else el.value = target.value;
+    el.disabled = target.disabled;
+    const box = el.closest('.auto-option');
+    if (box && el.type === 'checkbox') box.classList.toggle('disabled', target.disabled);
+  }
+}
+
+for (const { el, target } of autoLinks) {
+  el.addEventListener('change', () => {
+    if (el.type === 'checkbox') target.checked = el.checked;
+    else target.value = el.value;
+    target.dispatchEvent(new Event('change'));
+    syncAutoOptions();
+  });
+  target.addEventListener('change', syncAutoOptions);
+}
+
 $('#add').onclick = () => {
   const start = parse($('#start').value), end = parse($('#end').value);
   if (isNaN(start) || isNaN(end)) return setStatus(t('err_times'), true);
@@ -2019,6 +2103,7 @@ $('#load-form').addEventListener('submit', async e => {
     suggestionMessage = null;
     captionToggle.checked = false;
     updateCaptionState();
+    syncAutoOptions();
     $('#comment-analysis-results').hidden = true;
     $('#comment-analysis-status').textContent = '';
     $('#analysis-suggestion-status').textContent = '';
@@ -2275,6 +2360,7 @@ $('#render-btn').onclick = async () => {
 
 // Initialiseer taal bij laden van de pagina
 setLanguage(currentLang);
+syncAutoOptions();
 </script>
 </script>
 </body>
