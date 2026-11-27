@@ -97,7 +97,7 @@ const I18N = {
     err_yt_load: "De YouTube-speler kon niet laden. Je kunt de tijden zelf typen bij Start en Einde.",
     err_generic: "Er ging iets mis.",
     err_logo_upload: "Logo uploaden mislukt.",
-    auto_title: "✨ Automatisch TikToks maken",
+    auto_title: "Automatisch TikToks maken",
     auto_desc: "Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.",
     auto_export: "Meteen exporteren",
     btn_upload_video: "Of kies een video van je computer",
@@ -117,7 +117,7 @@ const I18N = {
     yt_uploading: "Uploaden naar YouTube...",
     yt_done: "Op YouTube gezet ({privacy}).",
     yt_confirm_public: "Deze clip wordt meteen openbaar op je YouTube-kanaal gezet. Doorgaan?",
-    batch_title: "📦 Batch: meerdere video's in één keer",
+    batch_title: "Batch: meerdere video's in één keer",
     batch_desc: "Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.",
     batch_urls_label: "Links, één per regel",
     batch_button: "Start batch",
@@ -250,7 +250,7 @@ const I18N = {
     err_yt_load: "The YouTube player could not load. You can manually enter Start and End times.",
     err_generic: "Something went wrong.",
     err_logo_upload: "Failed to upload logo.",
-    auto_title: "✨ Make TikToks automatically",
+    auto_title: "Make TikToks automatically",
     auto_desc: "Analyses the whole video locally and for free: hooks in the transcript, audio energy, speaking pace and (for YouTube) comments and heatmap. Clips start and end on full sentences, with a hook caption and post text with hashtags.",
     auto_export: "Export right away",
     btn_upload_video: "Or choose a video from your computer",
@@ -270,7 +270,7 @@ const I18N = {
     yt_uploading: "Uploading to YouTube...",
     yt_done: "Uploaded to YouTube ({privacy}).",
     yt_confirm_public: "This clip will be public on your YouTube channel right away. Continue?",
-    batch_title: "📦 Batch: several videos at once",
+    batch_title: "Batch: several videos at once",
     batch_desc: "Paste one link per line. Each video is analysed automatically and turned into TikToks with the settings below. You can't export anything else meanwhile.",
     batch_urls_label: "Links, one per line",
     batch_button: "Start batch",
@@ -652,7 +652,7 @@ function renderAnalysis(data) {
     const fraction = tick / 4;
     const rowY = bottom - fraction * height;
     const count = Math.round(maxMentions * fraction);
-    add('line', { x1: left, y1: rowY, x2: right, y2: rowY, stroke: 'rgba(255,255,255,0.12)' });
+    add('line', { x1: left, y1: rowY, x2: right, y2: rowY, stroke: 'rgba(128,128,128,0.22)' });
     add('text', { x: left - 10, y: rowY + 4, 'text-anchor': 'end' }, String(count));
     add('text', { x: right + 10, y: rowY + 4 }, `${Math.round(fraction * 100)}%`);
   }
@@ -665,7 +665,7 @@ function renderAnalysis(data) {
       y: bottom - barHeight,
       width: Math.max(1, x(bin.end) - x(bin.start) - 2),
       height: barHeight,
-      fill: '#818cf8',
+      fill: '#3b82f6',
       rx: 2,
     });
     const title = document.createElementNS(ns, 'title');
@@ -679,7 +679,7 @@ function renderAnalysis(data) {
       add('path', {
         d: `M ${points.join(' L ')}`,
         fill: 'none',
-        stroke: '#34d399',
+        stroke: '#16a34a',
         'stroke-width': 3,
         'stroke-linejoin': 'round',
         'stroke-linecap': 'round',
@@ -693,7 +693,7 @@ function renderAnalysis(data) {
     add('path', {
       d: `M ${chatPoints.join(' L ')}`,
       fill: 'none',
-      stroke: '#fb923c',
+      stroke: '#ea580c',
       'stroke-width': 2,
       'stroke-dasharray': '6 4',
       'stroke-linejoin': 'round',

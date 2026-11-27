@@ -6,27 +6,27 @@
 <title>Clipper — Video Clips & Ondertitels</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/base.css">
 <link rel="stylesheet" href="/static/clipper.css">
 </head>
 <body>
 
-<!-- Header Navigation -->
 <header class="navbar">
   <a href="/" class="brand">
     <div class="brand-logo">
-      <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4h16V6H4v2zm0 4h6v6H4v-6zm8 0h8v6h-8v-6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
     </div>
     <span class="brand-text">ClipAPP</span>
     <span class="brand-tag" data-i18n="brand_tag">Clipper</span>
   </a>
   <nav class="nav-links">
     <a href="/" class="nav-btn active">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
       <span data-i18n="nav_clipper">Clipper (URL)</span>
     </a>
     <a href="/editor" class="nav-btn">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v6M15 4v6"/></svg>
       <span data-i18n="nav_editor">Tijdlijn Editor</span>
     </a>
     <div class="lang-switch" role="group" aria-label="Language selection">
@@ -37,283 +37,283 @@
 </header>
 
 <main>
-  <div class="header-intro">
+  <div class="page-head">
     <h1 data-i18n="hero_title">Video Clipper & Transcribe</h1>
     <p data-i18n="hero_desc">Plak een YouTube- of video-link, markeer de beste momenten en genereer automatisch korte clips met optionele ondertitels en 9:16 formaat.</p>
   </div>
 
-  <section>
-    <form id="load-form">
-      <div class="input-wrapper">
-        <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-        <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... of andere videolink" data-i18n-placeholder="url_placeholder" required aria-label="Link naar de video">
+  <!-- bovenste rij: video laden | batch -->
+  <div class="top-grid">
+    <section class="card load-card">
+      <form id="load-form">
+        <div class="input-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... of andere videolink" data-i18n-placeholder="url_placeholder" required aria-label="Link naar de video">
+        </div>
+        <button class="primary" id="load-btn">
+          <span data-i18n="btn_load">Video laden</span>
+        </button>
+      </form>
+      <div class="load-foot">
+        <span class="hint-platforms" data-i18n="hint_platforms">Ondersteunt: YouTube, Vimeo, directe MP4/WebM en andere webvideo's</span>
+        <label class="local-upload-btn" for="local-video">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <span data-i18n="btn_upload_video">Of kies een video van je computer</span>
+        </label>
+        <input type="file" id="local-video" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mkv,.mov,.m4v" hidden>
       </div>
-      <button class="primary" id="load-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-        <span data-i18n="btn_load">Video laden</span>
-      </button>
-    </form>
-    <div class="local-upload">
-      <label class="local-upload-btn" for="local-video">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
-        <span data-i18n="btn_upload_video">Of kies een video van je computer</span>
-      </label>
-      <input type="file" id="local-video" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mkv,.mov,.m4v" hidden>
-    </div>
-    <div class="hint-platforms">
-      <span data-i18n="hint_platforms">Ondersteunt: YouTube, Vimeo, directe MP4/WebM en andere webvideo's</span>
-    </div>
-  </section>
+    </section>
 
-  <p id="status" role="status" aria-live="polite"></p>
-
-  <details class="batch-box" id="batch-panel">
-    <summary data-i18n="batch_title">📦 Batch: meerdere video's in één keer</summary>
-    <p data-i18n="batch_desc">Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.</p>
-    <textarea id="batch-urls" rows="5" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=..." aria-label="Links, één per regel" data-i18n-aria-label="batch_urls_label"></textarea>
-    <div class="auto-options">
-      <div class="auto-option">
-        <label><span data-i18n="analysis_suggestion_count">Aantal clips</span>
+    <details class="card batch-box" id="batch-panel">
+      <summary data-i18n="batch_title">Batch: meerdere video's in één keer</summary>
+      <p data-i18n="batch_desc">Plak één link per regel. Elke video wordt automatisch geanalyseerd en omgezet in TikToks met de instellingen hieronder. Je kunt ondertussen niets anders exporteren.</p>
+      <textarea id="batch-urls" rows="4" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=..." aria-label="Links, één per regel" data-i18n-aria-label="batch_urls_label"></textarea>
+      <div class="field-row">
+        <label class="field"><span data-i18n="analysis_suggestion_count">Aantal clips</span>
           <select data-link="#auto-count">
             <option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="10">10</option>
           </select>
         </label>
-      </div>
-      <div class="auto-option">
-        <label><span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+        <label class="field"><span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
           <select data-link="#auto-length">
             <option value="15-30">15–30 s</option><option value="20-60">20–60 s</option><option value="45-90">45–90 s</option>
           </select>
         </label>
       </div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#subs"><span data-i18n="subs_title">Ondertitels maken</span></label></div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#vertical"><span data-i18n="vert_title">Verticaal 9:16 formaat</span></label></div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#blur"><span data-i18n="auto_blur">Geblurde achtergrond</span></label></div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#face-crop"><span data-i18n="auto_face">Volg het gezicht</span></label></div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#caption-toggle"><span data-i18n="auto_caption">Caption bovenin</span></label></div>
-      <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#jump-cuts"><span data-i18n="jump_title">Stiltes eruit knippen</span></label></div>
-    </div>
-    <button type="button" class="primary auto-go" id="batch-btn" data-i18n="batch_button">Start batch</button>
-    <div id="batch-results"></div>
-  </details>
-
-  <section id="editor" hidden>
-    <div class="analysis-box auto-box" id="auto-panel">
-      <h2 data-i18n="auto_title">✨ Automatisch TikToks maken</h2>
-      <p data-i18n="auto_desc">Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.</p>
-      <div class="analysis-suggestion-controls">
-        <label for="auto-count">
-          <span data-i18n="analysis_suggestion_count">Aantal clips</span>
-          <select id="auto-count">
-            <option value="3">3</option>
-            <option value="5" selected>5</option>
-            <option value="7">7</option>
-            <option value="10">10</option>
-          </select>
-        </label>
-        <label for="auto-length">
-          <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
-          <select id="auto-length">
-            <option value="15-30">15–30 s</option>
-            <option value="20-60" selected>20–60 s</option>
-            <option value="45-90">45–90 s</option>
-          </select>
-        </label>
-      </div>
       <div class="auto-options">
-        <div class="auto-option">
-          <label class="auto-check" for="auto-subs">
-            <input type="checkbox" id="auto-subs" data-link="#subs">
-            <span data-i18n="subs_title">Ondertitels maken</span>
-          </label>
-          <select id="auto-lang" data-link="#lang" aria-label="Taal van de video" data-i18n-aria-label="subs_lang_label">
-            <option value="" data-i18n="opt_lang_auto">Automatisch herkennen</option>
-            <option value="nl" data-i18n="opt_lang_nl">Nederlands</option>
-            <option value="en" data-i18n="opt_lang_en">Engels</option>
-            <option value="fr" data-i18n="opt_lang_fr">Frans</option>
-            <option value="de" data-i18n="opt_lang_de">Duits</option>
-          </select>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#subs"><span data-i18n="subs_title">Ondertitels maken</span></label></div>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#vertical"><span data-i18n="vert_title">Verticaal 9:16 formaat</span></label></div>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#blur"><span data-i18n="auto_blur">Geblurde achtergrond</span></label></div>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#face-crop"><span data-i18n="auto_face">Volg het gezicht</span></label></div>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#caption-toggle"><span data-i18n="auto_caption">Caption bovenin</span></label></div>
+        <div class="auto-option"><label class="auto-check"><input type="checkbox" data-link="#jump-cuts"><span data-i18n="jump_title">Stiltes eruit knippen</span></label></div>
+      </div>
+      <button type="button" class="primary block" id="batch-btn" data-i18n="batch_button">Start batch</button>
+      <div id="batch-results"></div>
+    </details>
+  </div>
+
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <!-- werkruimte: links video en stukken, rechts automatisch + opties -->
+  <section id="editor" class="workspace" hidden>
+    <div class="stack">
+      <div class="card player-card">
+        <div class="player-container">
+          <video id="player" controls hidden></video>
+          <div id="yt-wrap" hidden></div>
         </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-vertical">
-            <input type="checkbox" id="auto-vertical" data-link="#vertical">
-            <span data-i18n="vert_title">Verticaal 9:16 formaat</span>
-          </label>
+        <div class="timeline-header">
+          <span class="eyebrow" data-i18n="timeline_label">Tijdlijn preview</span>
+          <span class="muted" data-i18n="timeline_hint">Klik op de balk om te spoelen</span>
         </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-blur">
-            <input type="checkbox" id="auto-blur" data-link="#blur">
-            <span data-i18n="auto_blur">Geblurde achtergrond</span>
-          </label>
-        </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-face-crop">
-            <input type="checkbox" id="auto-face-crop" data-link="#face-crop">
-            <span data-i18n="auto_face">Volg het gezicht</span>
-          </label>
-        </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-caption">
-            <input type="checkbox" id="auto-caption" data-link="#caption-toggle">
-            <span data-i18n="auto_caption">Caption bovenin</span>
-          </label>
-          <select id="auto-caption-position" data-link="#caption-position" aria-label="Positie caption" data-i18n-aria-label="caption_position">
-            <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
-            <option value="top" data-i18n="caption_top">Bovenin de video</option>
-            <option value="center" data-i18n="caption_center">Midden in beeld</option>
-            <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
-          </select>
-        </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-jump-cuts">
-            <input type="checkbox" id="auto-jump-cuts" data-link="#jump-cuts">
-            <span data-i18n="jump_title">Stiltes eruit knippen</span>
-          </label>
-        </div>
-        <div class="auto-option">
-          <label class="auto-check" for="auto-export">
-            <input type="checkbox" id="auto-export" checked>
-            <span data-i18n="auto_export">Meteen exporteren</span>
-          </label>
+        <div id="timeline" title="Klik om naar die plek te springen" data-i18n-title="timeline_title">
+          <div id="playhead"></div>
         </div>
       </div>
-      <button type="button" class="primary auto-go" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
-      <p class="auto-hint" data-i18n="auto_hint">Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.</p>
-      <p id="auto-status" role="status" aria-live="polite"></p>
+
+      <div class="card cutter-box">
+        <div class="times">
+          <div class="field">
+            <label for="start" data-i18n="label_start">Starttijd</label>
+            <div class="pair">
+              <input class="time" id="start" placeholder="0:00">
+              <button type="button" id="start-now" data-i18n="btn_start_now">Start = nu</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="end" data-i18n="label_end">Eindtijd</label>
+            <div class="pair">
+              <input class="time" id="end" placeholder="0:30">
+              <button type="button" id="end-now" data-i18n="btn_end_now">Einde = nu</button>
+            </div>
+          </div>
+          <button type="button" class="primary" id="add">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="btn_add">Stuk toevoegen</span>
+          </button>
+        </div>
+
+        <div class="segments-section">
+          <div class="segments-header eyebrow" data-i18n="segments_header">Geselecteerde stukken</div>
+          <ul id="segments"></ul>
+          <p class="empty" id="empty" data-i18n="segments_empty">Nog geen stukken gekozen. Speel de video af, stel start en einde in en klik op "Stuk toevoegen".</p>
+        </div>
+      </div>
+
+      <div class="card analysis-box" id="comment-analysis-panel" hidden>
+        <h2 data-i18n="analysis_title">Commenttijdstempels & kijkersmomenten</h2>
+        <p data-i18n="analysis_desc">Vergelijk tijdstempels die in YouTube-comments worden genoemd met de beschikbare kijkersheatmap.</p>
+        <div class="analysis-actions">
+          <label class="inline-check analysis-chat-option" for="analysis-live-chat">
+            <input type="checkbox" id="analysis-live-chat">
+            <span data-i18n="analysis_live_chat">Ook de live-chat analyseren (alleen bij afgelopen livestreams; kan enkele minuten duren)</span>
+          </label>
+          <button type="button" id="analyze-comments-btn" data-i18n="analysis_button">Analyseer comments</button>
+        </div>
+        <p id="comment-analysis-status" role="status" aria-live="polite"></p>
+        <div id="comment-analysis-results" hidden>
+          <div class="analysis-stats">
+            <div class="analysis-stat">
+              <span data-i18n="analysis_mentions_label">Tijdstempelvermeldingen</span>
+              <strong id="analysis-mentions-value">0</strong>
+            </div>
+            <div class="analysis-stat">
+              <span data-i18n="analysis_comments_label">Geanalyseerde comments</span>
+              <strong id="analysis-comments-value">0</strong>
+            </div>
+            <div class="analysis-stat">
+              <span data-i18n="analysis_peak_comments_label">Interval met meeste timestamps</span>
+              <strong id="analysis-peak-comments-value">—</strong>
+            </div>
+            <div class="analysis-stat">
+              <span data-i18n="analysis_peak_viewers_label">Hoogste heatmapscore (relatief)</span>
+              <strong id="analysis-peak-viewers-value">—</strong>
+            </div>
+          </div>
+          <svg id="comment-analysis-chart" viewBox="0 0 960 320" role="img"></svg>
+          <div class="analysis-legend">
+            <span><i class="mentions-key"></i><span data-i18n="analysis_legend_mentions">Tijdstempels in comments</span></span>
+            <span><i class="viewers-key"></i><span data-i18n="analysis_legend_viewers">Kijkersheatmap (relatief)</span></span>
+          </div>
+          <div class="analysis-split">
+            <div>
+              <h3 class="analysis-table-title" data-i18n="analysis_table_title">Exacte cijfers per interval</h3>
+              <p class="analysis-table-description" id="analysis-table-description"></p>
+              <div class="analysis-table-wrap">
+                <table id="analysis-data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" data-i18n="analysis_table_interval">Video-interval</th>
+                      <th scope="col" class="numeric" data-i18n="analysis_table_mentions">Timestamps genoemd</th>
+                      <th scope="col" class="numeric" data-i18n="analysis_table_score">Heatmapscore (relatief)</th>
+                      <th scope="col" class="numeric" id="analysis-chat-header" data-i18n="analysis_table_chat" hidden>Chatberichten</th>
+                    </tr>
+                  </thead>
+                  <tbody id="analysis-data-rows"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="analysis-suggestions">
+              <h3 data-i18n="analysis_suggestions_title">Automatische clipvoorstellen</h3>
+              <p data-i18n="analysis_suggestions_desc">De voorstellen combineren commentvermeldingen en kijkersinteresse. Je kunt ze eerst bekijken en ongewenste stukken verwijderen.</p>
+              <div class="field-row">
+                <label class="field" for="analysis-clip-count">
+                  <span data-i18n="analysis_suggestion_count">Aantal clips</span>
+                  <select id="analysis-clip-count">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </label>
+                <label class="field" for="analysis-clip-duration">
+                  <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+                  <select id="analysis-clip-duration">
+                    <option value="15">15 s</option>
+                    <option value="30" selected>30 s</option>
+                    <option value="45">45 s</option>
+                    <option value="60">60 s</option>
+                  </select>
+                </label>
+              </div>
+              <button type="button" class="block" id="generate-suggestions-btn" data-i18n="analysis_generate_suggestions">Genereer clipvoorstellen</button>
+              <p id="analysis-suggestion-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="analysis-box" id="comment-analysis-panel" hidden>
-      <h2 data-i18n="analysis_title">Commenttijdstempels & kijkersmomenten</h2>
-      <p data-i18n="analysis_desc">Vergelijk tijdstempels die in YouTube-comments worden genoemd met de beschikbare kijkersheatmap.</p>
-      <label class="inline-check analysis-chat-option" for="analysis-live-chat">
-        <input type="checkbox" id="analysis-live-chat">
-        <span data-i18n="analysis_live_chat">Ook de live-chat analyseren (alleen bij afgelopen livestreams; kan enkele minuten duren)</span>
-      </label>
-      <button type="button" class="primary" id="analyze-comments-btn" data-i18n="analysis_button">Analyseer comments</button>
-      <p id="comment-analysis-status" role="status" aria-live="polite"></p>
-      <div id="comment-analysis-results" hidden>
-        <div class="analysis-stats">
-          <div class="analysis-stat">
-            <span data-i18n="analysis_mentions_label">Tijdstempelvermeldingen</span>
-            <strong id="analysis-mentions-value">0</strong>
-          </div>
-          <div class="analysis-stat">
-            <span data-i18n="analysis_comments_label">Geanalyseerde comments</span>
-            <strong id="analysis-comments-value">0</strong>
-          </div>
-          <div class="analysis-stat">
-            <span data-i18n="analysis_peak_comments_label">Interval met meeste timestamps</span>
-            <strong id="analysis-peak-comments-value">—</strong>
-          </div>
-          <div class="analysis-stat">
-            <span data-i18n="analysis_peak_viewers_label">Hoogste heatmapscore (relatief)</span>
-            <strong id="analysis-peak-viewers-value">—</strong>
-          </div>
+    <aside class="stack sidebar">
+      <div class="card auto-box" id="auto-panel">
+        <h2 data-i18n="auto_title">Automatisch TikToks maken</h2>
+        <p data-i18n="auto_desc">Analyseert de hele video lokaal en gratis: hooks in het transcript, energie in het geluid, spreektempo en (bij YouTube) comments en heatmap. Clips beginnen en eindigen op hele zinnen, met een hook-caption en posttekst met hashtags.</p>
+        <div class="field-row">
+          <label class="field" for="auto-count">
+            <span data-i18n="analysis_suggestion_count">Aantal clips</span>
+            <select id="auto-count">
+              <option value="3">3</option>
+              <option value="5" selected>5</option>
+              <option value="7">7</option>
+              <option value="10">10</option>
+            </select>
+          </label>
+          <label class="field" for="auto-length">
+            <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
+            <select id="auto-length">
+              <option value="15-30">15–30 s</option>
+              <option value="20-60" selected>20–60 s</option>
+              <option value="45-90">45–90 s</option>
+            </select>
+          </label>
         </div>
-        <svg id="comment-analysis-chart" viewBox="0 0 960 320" role="img"></svg>
-        <div class="analysis-legend">
-          <span><i class="mentions-key"></i><span data-i18n="analysis_legend_mentions">Tijdstempels in comments</span></span>
-          <span><i class="viewers-key"></i><span data-i18n="analysis_legend_viewers">Kijkersheatmap (relatief)</span></span>
-        </div>
-        <h3 class="analysis-table-title" data-i18n="analysis_table_title">Exacte cijfers per interval</h3>
-        <p class="analysis-table-description" id="analysis-table-description"></p>
-        <div class="analysis-table-wrap">
-          <table id="analysis-data-table">
-            <thead>
-              <tr>
-                <th scope="col" data-i18n="analysis_table_interval">Video-interval</th>
-                <th scope="col" class="numeric" data-i18n="analysis_table_mentions">Timestamps genoemd</th>
-                <th scope="col" class="numeric" data-i18n="analysis_table_score">Heatmapscore (relatief)</th>
-                <th scope="col" class="numeric" id="analysis-chat-header" data-i18n="analysis_table_chat" hidden>Chatberichten</th>
-              </tr>
-            </thead>
-            <tbody id="analysis-data-rows"></tbody>
-          </table>
-        </div>
-        <div class="analysis-suggestions">
-          <h3 data-i18n="analysis_suggestions_title">Automatische clipvoorstellen</h3>
-          <p data-i18n="analysis_suggestions_desc">De voorstellen combineren commentvermeldingen en kijkersinteresse. Je kunt ze eerst bekijken en ongewenste stukken verwijderen.</p>
-          <div class="analysis-suggestion-controls">
-            <label for="analysis-clip-count">
-              <span data-i18n="analysis_suggestion_count">Aantal clips</span>
-              <select id="analysis-clip-count">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3" selected>3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-              </select>
+        <div class="auto-options">
+          <div class="auto-option">
+            <label class="auto-check" for="auto-subs">
+              <input type="checkbox" id="auto-subs" data-link="#subs">
+              <span data-i18n="subs_title">Ondertitels maken</span>
             </label>
-            <label for="analysis-clip-duration">
-              <span data-i18n="analysis_suggestion_duration">Lengte per clip</span>
-              <select id="analysis-clip-duration">
-                <option value="15">15 s</option>
-                <option value="30" selected>30 s</option>
-                <option value="45">45 s</option>
-                <option value="60">60 s</option>
-              </select>
+            <select id="auto-lang" data-link="#lang" aria-label="Taal van de video" data-i18n-aria-label="subs_lang_label">
+              <option value="" data-i18n="opt_lang_auto">Automatisch herkennen</option>
+              <option value="nl" data-i18n="opt_lang_nl">Nederlands</option>
+              <option value="en" data-i18n="opt_lang_en">Engels</option>
+              <option value="fr" data-i18n="opt_lang_fr">Frans</option>
+              <option value="de" data-i18n="opt_lang_de">Duits</option>
+            </select>
+          </div>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-vertical">
+              <input type="checkbox" id="auto-vertical" data-link="#vertical">
+              <span data-i18n="vert_title">Verticaal 9:16 formaat</span>
             </label>
-            <button type="button" class="primary" id="generate-suggestions-btn" data-i18n="analysis_generate_suggestions">Genereer clipvoorstellen</button>
           </div>
-          <p id="analysis-suggestion-status" role="status" aria-live="polite"></p>
-        </div>
-      </div>
-    </div>
-
-    <div class="player-container">
-      <video id="player" controls hidden></video>
-      <div id="yt-wrap" hidden></div>
-    </div>
-
-    <div class="timeline-header">
-      <span class="timeline-label" data-i18n="timeline_label">Tijdlijn preview</span>
-      <span style="font-size: 0.8rem; color: var(--text-muted);" data-i18n="timeline_hint">Klik op de balk om te spoelen</span>
-    </div>
-    <div id="timeline" title="Klik om naar die plek te springen" data-i18n-title="timeline_title">
-      <div id="playhead"></div>
-    </div>
-
-    <div class="cutter-box">
-      <div class="times">
-        <div class="field">
-          <label for="start" data-i18n="label_start">Starttijd</label>
-          <div class="pair">
-            <input class="time" id="start" placeholder="0:00">
-            <button type="button" id="start-now" data-i18n="btn_start_now">Start = nu</button>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-blur">
+              <input type="checkbox" id="auto-blur" data-link="#blur">
+              <span data-i18n="auto_blur">Geblurde achtergrond</span>
+            </label>
+          </div>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-face-crop">
+              <input type="checkbox" id="auto-face-crop" data-link="#face-crop">
+              <span data-i18n="auto_face">Volg het gezicht</span>
+            </label>
+          </div>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-caption">
+              <input type="checkbox" id="auto-caption" data-link="#caption-toggle">
+              <span data-i18n="auto_caption">Caption bovenin</span>
+            </label>
+            <select id="auto-caption-position" data-link="#caption-position" aria-label="Positie caption" data-i18n-aria-label="caption_position">
+              <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
+              <option value="top" data-i18n="caption_top">Bovenin de video</option>
+              <option value="center" data-i18n="caption_center">Midden in beeld</option>
+              <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
+            </select>
+          </div>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-jump-cuts">
+              <input type="checkbox" id="auto-jump-cuts" data-link="#jump-cuts">
+              <span data-i18n="jump_title">Stiltes eruit knippen</span>
+            </label>
+          </div>
+          <div class="auto-option">
+            <label class="auto-check" for="auto-export">
+              <input type="checkbox" id="auto-export" checked>
+              <span data-i18n="auto_export">Meteen exporteren</span>
+            </label>
           </div>
         </div>
-        <div class="field">
-          <label for="end" data-i18n="label_end">Eindtijd</label>
-          <div class="pair">
-            <input class="time" id="end" placeholder="0:30">
-            <button type="button" id="end-now" data-i18n="btn_end_now">Einde = nu</button>
-          </div>
-        </div>
-        <button type="button" id="add">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-          <span data-i18n="btn_add">Stuk toevoegen</span>
-        </button>
+        <button type="button" class="primary block" id="auto-btn" data-i18n="auto_button">Maak TikToks</button>
+        <p class="auto-hint" data-i18n="auto_hint">Tip: zet 'Ondertitels maken' aan voor slimmere keuzes op basis van wat er gezegd wordt (gebruikt Whisper). Zonder ondertitels kiest de app op luidheid en comments.</p>
+        <p id="auto-status" role="status" aria-live="polite"></p>
       </div>
 
-      <div class="segments-section">
-        <div class="segments-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-          <span data-i18n="segments_header">Geselecteerde stukken</span>
-        </div>
-        <ul id="segments"></ul>
-        <p class="empty" id="empty" data-i18n="segments_empty">Nog geen stukken gekozen. Speel de video af, stel start en einde in en klik op "Stuk toevoegen".</p>
-      </div>
-    </div>
+      <div class="card options-box">
+        <h2 data-i18n="options_title">Opties & Effecten</h2>
 
-    <!-- Opties & Effecten -->
-    <div class="options-box">
-      <div class="options-title">
-        <svg width="20" height="20" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-        <span data-i18n="options_title">Opties & Effecten</span>
-      </div>
-
-      <div class="options-grid">
-        <!-- Subtitles Group -->
         <div class="opt-group" id="group-subs">
           <label class="opt-main-toggle" for="subs">
             <input type="checkbox" id="subs">
@@ -343,17 +343,19 @@
           </div>
           <div class="opt-sub-row disabled" id="sub-style-row">
             <label for="sub-style" data-i18n="subs_style_label">Stijl:</label>
-            <select id="sub-style" disabled>
-              <option value="tiktok" data-i18n="opt_style_tiktok">TikTok (woord voor woord)</option>
-              <option value="classic" data-i18n="opt_style_classic">Klassiek (wit)</option>
-            </select>
-            <select id="sub-color" disabled aria-label="Kleur" data-i18n-aria-label="subs_color_label">
-              <option value="yellow" data-i18n="opt_color_yellow">Geel</option>
-              <option value="green" data-i18n="opt_color_green">Groen</option>
-              <option value="cyan" data-i18n="opt_color_cyan">Cyaan</option>
-              <option value="pink" data-i18n="opt_color_pink">Roze</option>
-              <option value="white" data-i18n="opt_color_white">Wit</option>
-            </select>
+            <div class="opt-inline">
+              <select id="sub-style" disabled>
+                <option value="tiktok" data-i18n="opt_style_tiktok">TikTok (woord voor woord)</option>
+                <option value="classic" data-i18n="opt_style_classic">Klassiek (wit)</option>
+              </select>
+              <select id="sub-color" disabled aria-label="Kleur" data-i18n-aria-label="subs_color_label">
+                <option value="yellow" data-i18n="opt_color_yellow">Geel</option>
+                <option value="green" data-i18n="opt_color_green">Groen</option>
+                <option value="cyan" data-i18n="opt_color_cyan">Cyaan</option>
+                <option value="pink" data-i18n="opt_color_pink">Roze</option>
+                <option value="white" data-i18n="opt_color_white">Wit</option>
+              </select>
+            </div>
             <label class="inline-check" for="sub-upper">
               <input type="checkbox" id="sub-upper" checked disabled>
               <span data-i18n="subs_upper">HOOFDLETTERS</span>
@@ -365,7 +367,6 @@
           </label>
         </div>
 
-        <!-- Jump cuts -->
         <div class="opt-group" id="group-jumpcuts">
           <label class="opt-main-toggle" for="jump-cuts">
             <input type="checkbox" id="jump-cuts">
@@ -376,7 +377,6 @@
           </label>
         </div>
 
-        <!-- 9:16 Vertical Group -->
         <div class="opt-group" id="group-vertical">
           <label class="opt-main-toggle" for="vertical">
             <input type="checkbox" id="vertical">
@@ -399,36 +399,35 @@
               <input type="file" id="logo" accept="image/png,image/jpeg,image/webp" disabled>
             </div>
           </div>
+        </div>
 
-          <div class="opt-group" id="group-caption">
-            <label class="opt-main-toggle" for="caption-toggle">
-              <input type="checkbox" id="caption-toggle">
-              <div class="opt-toggle-content">
-                <span class="opt-toggle-title" data-i18n="caption_title">Caption bovenin (automatisch of comments)</span>
-                <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruikt de automatische caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
-              </div>
-            </label>
-            <div class="opt-sub-row disabled" id="caption-position-row">
-              <label for="caption-position" data-i18n="caption_position">Positie caption:</label>
-              <select id="caption-position" disabled>
-                <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
-                <option value="top" data-i18n="caption_top">Bovenin de video</option>
-                <option value="center" data-i18n="caption_center">Midden in beeld</option>
-                <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
-              </select>
+        <div class="opt-group" id="group-caption">
+          <label class="opt-main-toggle" for="caption-toggle">
+            <input type="checkbox" id="caption-toggle">
+            <div class="opt-toggle-content">
+              <span class="opt-toggle-title" data-i18n="caption_title">Caption bovenin (automatisch of comments)</span>
+              <span class="opt-toggle-desc" data-i18n="caption_desc">Gebruikt de automatische caption van de clip, of anders de best gewaardeerde comment met een timestamp. Voor een blur-balk boven de video: kies ook 9:16 en geblurde achtergrond.</span>
             </div>
+          </label>
+          <div class="opt-sub-row disabled" id="caption-position-row">
+            <label for="caption-position" data-i18n="caption_position">Positie caption:</label>
+            <select id="caption-position" disabled>
+              <option value="above" data-i18n="caption_above">Boven de video (bovenste balk)</option>
+              <option value="top" data-i18n="caption_top">Bovenin de video</option>
+              <option value="center" data-i18n="caption_center">Midden in beeld</option>
+              <option value="bottom" data-i18n="caption_bottom">Onderaan de video</option>
+            </select>
           </div>
         </div>
-      </div>
-    </div>
 
-    <button class="primary" id="render-btn" disabled>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-      <span data-i18n="btn_render">Clips maken & exporteren</span>
-    </button>
+        <button class="primary block" id="render-btn" disabled>
+          <span data-i18n="btn_render">Clips maken & exporteren</span>
+        </button>
+      </div>
+    </aside>
   </section>
 
-  <section id="results" hidden>
+  <section id="results" class="card" hidden>
     <h2 data-i18n="results_title">Gegenereerde Clips</h2>
     <div id="clips"></div>
   </section>

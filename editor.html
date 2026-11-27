@@ -6,27 +6,27 @@
 <title>Editor — Video & Audio Tijdlijn</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/base.css">
 <link rel="stylesheet" href="/static/editor.css">
 </head>
 <body>
 
-<!-- Header Navigation -->
 <header class="navbar">
   <a href="/editor" class="brand">
     <div class="brand-logo">
-      <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4h16V6H4v2zm0 4h6v6H4v-6zm8 0h8v6h-8v-6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
     </div>
     <span class="brand-text">ClipAPP</span>
     <span class="brand-tag" data-i18n="tag_editor">Studio Editor</span>
   </a>
   <nav class="nav-links">
     <a href="/" class="nav-btn">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
       <span data-i18n="nav_clipper">Clipper (URL)</span>
     </a>
     <a href="/editor" class="nav-btn active">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v6M15 4v6"/></svg>
       <span data-i18n="nav_editor">Tijdlijn Editor</span>
     </a>
     <div class="lang-switch" role="group" aria-label="Language selection">
@@ -37,83 +37,74 @@
 </header>
 
 <main>
-  <div class="head">
-    <div>
-      <h1 data-i18n="editor_title">Tijdlijn Editor</h1>
-      <p class="lead" data-i18n="editor_lead">Knip en combineer video's of audiofragmenten op een interactieve tijdlijn en exporteer direct in elk gewenst formaat.</p>
-    </div>
+  <div class="page-head">
+    <h1 data-i18n="editor_title">Tijdlijn Editor</h1>
+    <p data-i18n="editor_lead">Knip en combineer video's of audiofragmenten op een interactieve tijdlijn en exporteer direct in elk gewenst formaat.</p>
   </div>
 
+  <!-- bovenste rij: preview | mediabestanden -->
   <div class="top">
-    <!-- Stage / Preview Monitor -->
-    <section>
+    <section class="card stage-card">
       <div class="stage">
         <video id="video" playsinline></video>
         <div class="note" id="empty-note">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z"/></svg>
           <span data-i18n="note_empty">Voeg rechts mediabestanden toe om te beginnen</span>
         </div>
         <div class="note" id="audio-note" hidden>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="#10B981"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-          <span style="color: #fff; font-weight: 600;" data-i18n="note_audio">Audiospoor actief</span>
+          <span data-i18n="note_audio">Audiospoor actief</span>
         </div>
       </div>
       <div class="transport">
         <button id="play" class="primary" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <span id="play-text" data-i18n="btn_play">Afspelen</span>
         </button>
         <span id="clock">0:00.0 / 0:00.0</span>
       </div>
     </section>
 
-    <!-- Media Library / Uploads -->
-    <section>
+    <section class="card media-card">
       <h2 data-i18n="media_title">Mediabestanden</h2>
       <input type="file" id="file" multiple hidden accept="video/*,audio/*,.mkv,.mp3,.wav,.m4a,.flac,.ogg,.opus">
-      
       <div class="drop-zone" id="drop-box">
-        <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-        <div>
-          <button class="primary" id="pick" data-i18n="btn_pick">Bestanden kiezen</button>
-          <div class="muted" style="margin-top: 6px;" data-i18n="drop_hint">of sleep bestanden hierheen</div>
-        </div>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <button class="primary" id="pick" data-i18n="btn_pick">Bestanden kiezen</button>
+        <div class="muted" data-i18n="drop_hint">of sleep bestanden hierheen</div>
       </div>
-
       <div id="uploads"></div>
       <p class="muted" id="no-sources" data-i18n="no_sources">Nog geen bestanden geüpload.</p>
       <ul id="sources"></ul>
     </section>
   </div>
 
-  <!-- Timeline Section -->
-  <section>
+  <!-- tijdlijn -->
+  <section class="card timeline-card">
     <div class="toolbar">
-      <button id="b-split" title="Knippen op de afspeelkop (S)" data-i18n-title="b_split_title">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm9.64-9.64L22 4V3h-3l-7 7 3.64.36z"/></svg>
-        <span data-i18n="b_split">Knippen (S)</span>
-      </button>
-      <button id="b-del" title="Verwijderen (Delete)" data-i18n-title="b_del_title">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        <span data-i18n="b_del">Wissen</span>
-      </button>
-      <button id="b-dup" title="Dupliceren (D)" data-i18n-title="b_dup_title">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-        <span data-i18n="b_dup">Dupliceren (D)</span>
-      </button>
-      <button id="b-left" title="Naar links" data-i18n-title="b_left_title" data-i18n="b_left">◀ Links</button>
-      <button id="b-right" title="Naar rechts" data-i18n-title="b_right_title" data-i18n="b_right">Rechts ▶</button>
-      <button id="b-undo" title="Ongedaan maken (Ctrl+Z)" data-i18n-title="b_undo_title">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
-        <span data-i18n="b_undo">Ongedaan</span>
-      </button>
-      <button id="b-redo" title="Opnieuw (Ctrl+Y)" data-i18n-title="b_redo_title">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
-        <span data-i18n="b_redo">Opnieuw</span>
-      </button>
+      <div class="tool-group">
+        <button id="b-split" title="Knippen op de afspeelkop (S)" data-i18n-title="b_split_title">
+          <span data-i18n="b_split">Knippen (S)</span>
+        </button>
+        <button id="b-del" title="Verwijderen (Delete)" data-i18n-title="b_del_title">
+          <span data-i18n="b_del">Wissen</span>
+        </button>
+        <button id="b-dup" title="Dupliceren (D)" data-i18n-title="b_dup_title">
+          <span data-i18n="b_dup">Dupliceren (D)</span>
+        </button>
+      </div>
+      <div class="tool-group">
+        <button id="b-left" title="Naar links" data-i18n-title="b_left_title" data-i18n="b_left">◀ Links</button>
+        <button id="b-right" title="Naar rechts" data-i18n-title="b_right_title" data-i18n="b_right">Rechts ▶</button>
+      </div>
+      <div class="tool-group">
+        <button id="b-undo" title="Ongedaan maken (Ctrl+Z)" data-i18n-title="b_undo_title">
+          <span data-i18n="b_undo">Ongedaan</span>
+        </button>
+        <button id="b-redo" title="Opnieuw (Ctrl+Y)" data-i18n-title="b_redo_title">
+          <span data-i18n="b_redo">Opnieuw</span>
+        </button>
+      </div>
       <span class="grow"></span>
-      <label>
-        <span data-i18n="label_zoom">Zoom</span> 
+      <label class="zoom">
+        <span data-i18n="label_zoom">Zoom</span>
         <input type="range" id="zoom" min="5" max="200" value="40">
       </label>
     </div>
@@ -147,36 +138,39 @@
 
   <p id="status" role="status" aria-live="polite"></p>
 
-  <!-- Export Section -->
-  <section>
-    <h2 data-i18n="export_title">Video exporteren</h2>
-    <div class="export-row">
-      <label><span data-i18n="format_label">Formaat:</span>
-        <select id="format">
-          <option value="auto" data-i18n="opt_auto">Zoals het eerste videostuk</option>
-          <option value="vertical" data-i18n="opt_vertical">Verticaal 9:16 (Shorts/Reels 1080x1920)</option>
-          <option value="landscape" data-i18n="opt_landscape">Liggend 16:9 (YouTube 1920x1080)</option>
-          <option value="square" data-i18n="opt_square">Vierkant (Post 1080x1080)</option>
-        </select>
-      </label>
-      <label><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
-      <label><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
-      <div id="watermark-controls" hidden>
-        <input type="file" id="watermark-file" hidden accept="image/png,image/jpeg,image/webp">
-        <div id="watermark-upload-row">
-          <span data-i18n="watermark_label">Watermark:</span>
-          <button type="button" id="watermark-pick" data-i18n="watermark_pick">Afbeelding kiezen</button>
-          <span id="watermark-name" data-i18n="watermark_none">Geen afbeelding gekozen</span>
+  <!-- exporteren: instellingen | resultaat -->
+  <section class="card export-card">
+    <div class="export-settings">
+      <h2 data-i18n="export_title">Video exporteren</h2>
+      <div class="export-row">
+        <label class="field"><span data-i18n="format_label">Formaat:</span>
+          <select id="format">
+            <option value="auto" data-i18n="opt_auto">Zoals het eerste videostuk</option>
+            <option value="vertical" data-i18n="opt_vertical">Verticaal 9:16 (Shorts/Reels 1080x1920)</option>
+            <option value="landscape" data-i18n="opt_landscape">Liggend 16:9 (YouTube 1920x1080)</option>
+            <option value="square" data-i18n="opt_square">Vierkant (Post 1080x1080)</option>
+          </select>
+        </label>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="blur"> <span data-i18n="blur_label">Geblurde achtergrond</span></label>
+          <label class="check"><input type="checkbox" id="audio-only"> <span data-i18n="audio_only_label">Alleen audio (MP3)</span></label>
         </div>
-        <div id="watermark-preview-panel" hidden>
-          <canvas id="watermark-preview" width="270" height="480" aria-label="9:16-watermarkvoorbeeld"></canvas>
-          <span id="watermark-preview-hint" data-i18n="watermark_drag_hint">Sleep het watermerk in de preview naar de gewenste plek.</span>
+        <div id="watermark-controls" hidden>
+          <input type="file" id="watermark-file" hidden accept="image/png,image/jpeg,image/webp">
+          <div id="watermark-upload-row">
+            <span data-i18n="watermark_label">Watermark:</span>
+            <button type="button" id="watermark-pick" data-i18n="watermark_pick">Afbeelding kiezen</button>
+            <span id="watermark-name" data-i18n="watermark_none">Geen afbeelding gekozen</span>
+          </div>
+          <div id="watermark-preview-panel" hidden>
+            <canvas id="watermark-preview" width="270" height="480" aria-label="9:16-watermarkvoorbeeld"></canvas>
+            <span id="watermark-preview-hint" data-i18n="watermark_drag_hint">Sleep het watermerk in de preview naar de gewenste plek.</span>
+          </div>
         </div>
+        <button class="primary block" id="export-btn" disabled>
+          <span data-i18n="btn_export">Exporteren & Samenvoegen</span>
+        </button>
       </div>
-      <button class="primary" id="export-btn" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-        <span data-i18n="btn_export">Exporteren & Samenvoegen</span>
-      </button>
     </div>
     <div id="result" hidden></div>
   </section>
