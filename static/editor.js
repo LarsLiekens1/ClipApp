@@ -334,7 +334,7 @@ function renderBin() {
     const name = document.createElement('strong');
     name.textContent = s.name;
     const meta = document.createElement('span');
-    meta.textContent = `${s.kind === 'video' ? '🎬 Video' : '🎵 Audio'} • ${fmt(s.duration)}`;
+    meta.textContent = `${s.kind === 'video' ? 'Video' : 'Audio'} • ${fmt(s.duration)}`;
     info.append(name, meta);
     const add = document.createElement('button');
     add.innerHTML = t('btn_add_to_timeline');
