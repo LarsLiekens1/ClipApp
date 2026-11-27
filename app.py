@@ -259,6 +259,20 @@ def step_done(t0):
     log(f"klaar in {time.time() - t0:.1f} s")
 
 
+def blurred_background(w, h):
+    """Geblurde, iets donkere achtergrond die het hele beeld vult.
+    Eerst verkleinen, dan blurren, dan weer vergroten: ziet er hetzelfde uit
+    maar is zo'n 6 keer sneller dan blurren op volle grootte."""
+    sw, sh = max(2, w // 8 * 2), max(2, h // 8 * 2)   # kwart van de maat, even getallen
+    return (f"scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh},"
+            f"boxblur=6:3,eq=brightness=-0.12,scale={w}:{h}")
+
+
+# Tussenbestanden worden nog een keer gecodeerd, dus die mogen snel (ultrafast) maar
+# moeten wel scherp blijven (crf 16). Het eindresultaat gebruikt de normale instellingen.
+FAST_INTERMEDIATE = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "16"]
+
+
 def mmss(t):
     return f"{int(t // 60)}:{t % 60:04.1f}"
 
@@ -668,13 +682,13 @@ def get_model(name=None):
     log(f"Whisper-model '{name}' laden op {'GPU' if device == 'cuda' else 'processor'} "
         "(de eerste keer wordt het gedownload, dat kan even duren)...")
     try:
-        model = WhisperModel(name, device=device,
+        model = WhisperModel(name, device=device, cpu_threads=os.cpu_count() or 4,
                              compute_type="float16" if device == "cuda" else "int8")
     except Exception as e:
         if device != "cuda":
             raise
         log(f"GPU niet bruikbaar ({e}); Whisper draait nu op de processor.")
-        model = WhisperModel(name, device="cpu", compute_type="int8")
+        model = WhisperModel(name, device="cpu", cpu_threads=os.cpu_count() or 4, compute_type="int8")
     _models[name] = model
     return model
 
@@ -692,7 +706,9 @@ def transcribe_words(wav, language, on_progress=None, model_name=None):
     with _whisper_lock:
         model = get_model(model_name)
         # word_timestamps: per woord een tijd, zodat we zelf korte stukjes kunnen maken
-        segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True)
+        # vad_filter: stille stukken overslaan in plaats van ze door het model te halen
+        segments, _ = model.transcribe(audio, language=language or None, word_timestamps=True,
+                                       vad_filter=True)
         for s in segments:                     # de segmenten komen een voor een binnen
             check_cancel()
             words.extend([round(w.start, 3), round(w.end, 3), w.word] for w in (s.words or []))
@@ -847,7 +863,7 @@ def cut_silences(part, out):
     run_ffmpeg(["ffmpeg", "-y", "-i", str(part),
                 "-vf", f"select='{expr}',setpts=N/FRAME_RATE/TB",
                 "-af", f"aselect='{expr}',asetpts=N/SR/TB",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                *FAST_INTERMEDIATE,                # wordt daarna nog een keer gecodeerd
                 "-c:a", "aac", "-b:a", "192k", str(out)], length - removed)
     log(f"Jump cuts: {removed:.1f} s stilte weggeknipt.")
     return keeps
@@ -1570,11 +1586,12 @@ def render_job(data):
                 if meta.get("local"):                 # eigen bestand: stuk eruit knippen
                     run(["ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(d / meta["local"]),
                          "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a:0?",
-                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-                         "-c:a", "aac", "-b:a", "192k", str(d / f"{stem}.mp4")])
+                         *FAST_INTERMEDIATE, "-c:a", "aac", "-b:a", "192k", str(d / f"{stem}.mp4")])
                 else:
                     ytdlp_download("--download-sections", f"*{start:.2f}-{end:.2f}",
                                    "--force-keyframes-at-cuts",
+                                   # zonder dit kiest ffmpeg de trage standaard (preset medium, crf 23)
+                                   "--downloader-args", "ffmpeg_o:" + " ".join(FAST_INTERMEDIATE),
                                    "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
                                    "-o", str(d / f"{stem}.%(ext)s"), url, length=end - start)
                 part = find_file(d, stem)
@@ -1616,8 +1633,7 @@ def render_job(data):
                         # dezelfde video nog een keer, ingezoomd tot hij het hele scherm vult,
                         # daarna geblurd en iets donkerder, als achtergrond achter de echte video
                         filters.append("split[a][b];"
-                                       "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-                                       "boxblur=25:3,eq=brightness=-0.12[bg];"
+                                       f"[a]{blurred_background(1080, 1920)}[bg];"
                                        f"[b]{fit}[fg];"
                                        "[bg][fg]overlay=(W-w)/2:(H-h)/2")
                     else:
@@ -1874,8 +1890,7 @@ def video_graph(w, h, blur):
     tail = ",setsar=1,fps=30,format=yuv420p"           # zelfde beeldsnelheid voor alle stukken
     if blur:
         return (f"[0:v]split[a][b];"
-                f"[a]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
-                f"boxblur=25:3,eq=brightness=-0.12[bg];[b]{fit}[fg];"
+                f"[a]{blurred_background(w, h)}[bg];[b]{fit}[fg];"
                 f"[bg][fg]overlay=(W-w)/2:(H-h)/2{tail}[v]")
     return f"[0:v]{fit},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black{tail}[v]"
 
