@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+import console
+
 VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
 
 
@@ -78,7 +80,7 @@ def expand_sources(sources):
         elif path.is_file():
             out.append(str(path))
         else:
-            print(f"[OVERGESLAGEN] {s}: bestaat niet", file=sys.stderr)
+            console.line(f"OVERGESLAGEN  {s}: bestaat niet", kind="warn", file=sys.stderr)
     return out
 
 
@@ -105,17 +107,17 @@ def copy_results(result, out_dir, work):
 def run_batch(sources, options, out_dir, process_video, work, app):
     results = []
     for k, source in enumerate(sources, 1):
-        print(f"\n=== Video {k} van {len(sources)}: {source} ===", flush=True)
+        console.line(f"=== Video {k} van {len(sources)}: {source} ===")
         with app.app_context():
             try:
                 result = process_video(source, options)
             except Exception as e:                 # één kapotte video stopt de rest niet
                 result = {"source": source, "error": str(e)}
         if result.get("error"):
-            print(f"[MISLUKT] {source}: {result['error']}", file=sys.stderr, flush=True)
+            console.line(f"MISLUKT  {source}: {result['error']}", kind="err", file=sys.stderr)
         else:
             files = copy_results(result, out_dir, work)
-            print(f"[KLAAR] {len(files)} clip(s) in {out_dir}", flush=True)
+            console.line(f"KLAAR: {len(files)} clip(s) in {out_dir}", kind="ok")
         results.append(result)
     return results
 
@@ -126,7 +128,7 @@ def watch(folders, options, out_dir, process_video, work, app, interval):
     out_dir.mkdir(parents=True, exist_ok=True)
     done = set(json.loads(state_file.read_text(encoding="utf-8"))) if state_file.exists() else set()
     sizes = {}
-    print(f"Bewaakt: {', '.join(folders)} (Ctrl+C om te stoppen)", flush=True)
+    console.line(f"Bewaakt: {', '.join(folders)} (Ctrl+C om te stoppen)")
     while True:
         for folder in folders:
             for f in sorted(Path(folder).iterdir()):
@@ -153,14 +155,15 @@ def main(argv=None):
             watch(args.sources, options, out_dir, process_video, WORK, app, args.interval)
         sources = expand_sources(args.sources)
         if not sources:
-            print("Geen video's of links gevonden.", file=sys.stderr)
+            console.line("Geen video's of links gevonden.", kind="err", file=sys.stderr)
             return 1
         results = run_batch(sources, options, out_dir, process_video, WORK, app)
     except KeyboardInterrupt:
-        print("\nGestopt.")
+        console.clear_bar()
+        console.line("Gestopt.", kind="warn")
         return 130
     ok = sum(1 for r in results if not r.get("error"))
-    print(f"\nKlaar: {ok} van {len(results)} video('s) gelukt. Resultaten in {out_dir.resolve()}")
+    console.line(f"ALLES KLAAR: {ok} van {len(results)} video('s) gelukt. Resultaten in {out_dir.resolve()}")
     return 0 if ok == len(results) else 2
 
 

@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, Response, abort, jsonify, request, send_file, send_from_directory
 from werkzeug.exceptions import HTTPException
-from colorama import Fore, Style, just_fix_windows_console
+import console
 from dotenv import load_dotenv
 
 from delivery import (
@@ -89,27 +89,48 @@ def require_password():
 
 
 def print_startup_banner(port):
-    just_fix_windows_console()
-    title = "ClipAPP - Local Video Workspace"
-    print(f"\033]0;{title}\007", end="", flush=True)
-    if sys.platform == "win32":
-        import ctypes
+    console.banner(port, extra=[("WHISPER", f"{WHISPER_MODEL} ({WHISPER_DEVICE})"),
+                                ("WERKMAP", str(WORK))])
+    setup_request_log()
 
-        ctypes.windll.kernel32.SetConsoleTitleW(title)
 
-    url = f"http://127.0.0.1:{port}"
-    logo = (
-        "   +---------------------------------------+\n"
-        "   |          [>]  CLIPAPP                 |\n"
-        "   +---------------------------------------+\n"
-    )
-    print(f"{Fore.CYAN}{Style.BRIGHT}{logo}{Style.RESET_ALL}")
-    print(f"  {Fore.MAGENTA}LOCAL VIDEO STUDIO{Style.RESET_ALL}")
-    print(f"  {Fore.GREEN}[SERVER]  {url}{Style.RESET_ALL}")
-    print(f"  {Fore.YELLOW}[CLIPPER] {url}/{Style.RESET_ALL}")
-    print(f"  {Fore.YELLOW}[EDITOR]  {url}/editor{Style.RESET_ALL}")
-    print(f"  {Fore.LIGHTBLACK_EX}{'-' * 52}{Style.RESET_ALL}")
-    print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
+# ---------- verzoeken in de terminal ----------
+# Standaard logt Flask elk verzoek op een eigen regel. De browser vraagt elke 0,7 s de
+# voortgang op, dus dat werd een muur van regels. Nu: alleen de verzoeken die ertoe doen.
+
+_request_log = False
+_QUIET_PATHS = ("/static/", "/media/", "/favicon")
+
+
+def setup_request_log():
+    global _request_log
+    import logging
+    import flask.cli
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    flask.cli.show_server_banner = lambda *a, **k: None     # we hebben onze eigen banner
+    _request_log = True
+
+
+@app.before_request
+def _request_start():
+    request.environ["clipapp.t0"] = time.time()
+
+
+@app.after_request
+def _request_line(resp):
+    if not _request_log:
+        return resp
+    path = request.path
+    polling = request.method == "GET" and path.startswith("/api/tasks/")
+    quiet = polling or path.startswith(_QUIET_PATHS) or (request.method == "GET" and path in ("/", "/editor"))
+    if quiet and resp.status_code < 400:
+        return resp
+    took = time.time() - request.environ.get("clipapp.t0", time.time())
+    code = resp.status_code
+    color = console.GREEN if code < 300 else console.YELLOW if code < 400 else console.RED
+    console.line(f"{request.method:<4} {path}  {color}{code}{console.RESET}{console.GREY}  {took * 1000:.0f} ms",
+                 kind="net" if code < 400 else "warn")
+    return resp
 
 
 # ---------- achtergrondtaken (voortgang + annuleren in de browser) ----------
@@ -126,6 +147,7 @@ class Task:
         self.title = ""                  # bv. "Clip 2 van 5 (1:20 tot 1:50, 30 s)"
         self.step = ""                   # bv. "Stap 2/3  Ondertitels maken (Whisper)..."
         self.progress = None             # 0..1 van de huidige stap, of None
+        self.detail = ""                 # bv. "12.3MiB · 2.1MiB/s · nog 0:04"
         self.prefix = ""                 # bv. "Video 2 van 5" bij batch
         self.result = None
         self.error = None
@@ -135,7 +157,8 @@ class Task:
     def as_dict(self):
         title = f"{self.prefix} · {self.title}" if self.prefix and self.title else (self.prefix or self.title)
         return {"id": self.id, "kind": self.kind, "status": self.status, "title": title,
-                "step": self.step, "progress": self.progress, "result": self.result,
+                "step": self.step, "progress": self.progress, "detail": self.detail,
+                "result": self.result,
                 "error": self.error}
 
 
@@ -154,28 +177,37 @@ def check_cancel():
         raise TaskCancelled("Geannuleerd.")
 
 
-def run(cmd, cwd=None):
+def run(cmd, cwd=None, label=None):
     """Voer een commando uit; bij een fout krijg je de laatste regels van de foutmelding.
     Wordt de achtergrondtaak geannuleerd, dan wordt het commando gestopt."""
     # PYTHONUTF8 + utf-8: anders gaan titels met bijzondere tekens fout op Windows
     p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                          encoding="utf-8", errors="replace",
                          env={**os.environ, "PYTHONUTF8": "1"})
+    t0, spinning = time.time(), False
     while True:
         try:
-            stdout, stderr = p.communicate(timeout=0.5)
+            stdout, stderr = p.communicate(timeout=0.12)
             break
         except subprocess.TimeoutExpired:
             task = current_task()
             if task and task.cancel.is_set():
                 p.kill()
                 p.communicate()
+                if spinning:
+                    console.clear_bar()
                 raise TaskCancelled("Geannuleerd.")
+            # duurt het langer dan even? laat een spinner zien zodat je weet dat er iets gebeurt
+            text = label or _bar_label(task)
+            if text and time.time() - t0 > 0.8:
+                console.bar(None, text, f"{time.time() - t0:.0f} s")
+                spinning = True
+    if spinning:
+        console.clear_bar()
     p = subprocess.CompletedProcess(cmd, p.returncode, stdout, stderr)
     if p.returncode != 0:
         # volledige fout in de terminal, zodat je kunt zien wat er precies misging
-        print(f"\n{Fore.RED}[FOUT] {' '.join(str(c) for c in cmd[:8])} ...\n"
-              f"{p.stderr}{Style.RESET_ALL}", file=sys.stderr, flush=True)
+        console.error_block(f"FOUT  {' '.join(str(c) for c in cmd[:8])} ...", p.stderr)
         tail = "\n".join(p.stderr.strip().splitlines()[-5:]) or "commando mislukt"
         raise RuntimeError(tail)
     return p.stdout
@@ -183,54 +215,37 @@ def run(cmd, cwd=None):
 
 # ---------- voortgang in de terminal ----------
 
-_bar_open = False
-
-
 def log(msg):
     """Regel met de tijd ervoor, zodat je in de terminal ziet wat er wanneer gebeurde."""
-    end_bar()
     task = current_task()
     if task:
         if msg.startswith("==="):
-            task.title, task.step, task.progress = msg.strip("= "), "", None
+            task.title, task.step, task.progress, task.detail = msg.strip("= "), "", None, ""
         elif msg.startswith("Stap"):
-            task.step, task.progress = " ".join(msg.split()), None
-    color = Fore.CYAN
-    if "MISLUKT" in msg or "[FOUT]" in msg:
-        color = Fore.RED
-    elif "ALLES KLAAR" in msg:
-        color = Fore.GREEN
-    elif msg.startswith("Stap"):
-        color = Fore.MAGENTA
-    print(
-        f"{Fore.LIGHTBLACK_EX}[{time.strftime('%H:%M:%S')}]{Style.RESET_ALL} "
-        f"{color}{msg}{Style.RESET_ALL}",
-        flush=True,
-    )
+            task.step, task.progress, task.detail = " ".join(msg.split()), None, ""
+    console.line(msg)
 
 
-def show_bar(frac):
-    """Voortgangsbalk die op dezelfde regel bijwerkt."""
-    global _bar_open
-    frac = max(0.0, min(1.0, frac))
+def _bar_label(task):
+    if not task:
+        return ""
+    label = task.step or task.title
+    return re.sub(r"^Stap\s+\d+/\d+\s+", "", label).rstrip(".")
+
+
+def show_bar(frac, detail="", force=False, label=None):
+    """Voortgangsbalk die op dezelfde regel bijwerkt (en in de browser meeloopt).
+    frac=None = nog onbekend hoe lang het duurt: dan draait er een spinner."""
+    if frac is not None:
+        frac = max(0.0, min(1.0, frac))
     task = current_task()
     if task:
-        task.progress = frac
-    n = int(frac * 20)
-    print(
-        f"\r           {Fore.CYAN}{'#' * n}{Fore.LIGHTBLACK_EX}{'-' * (20 - n)}"
-        f"{Style.RESET_ALL} {Fore.YELLOW}{int(frac * 100):3d}%{Style.RESET_ALL}",
-        end="",
-        flush=True,
-    )
-    _bar_open = True
+        task.progress, task.detail = frac, detail
+    console.bar(frac, label or _bar_label(task), detail, force=force)
 
 
 def end_bar():
-    global _bar_open
-    if _bar_open:
-        print(flush=True)                      # naar een nieuwe regel na de balk
-        _bar_open = False
+    console.end_bar()
 
 
 def step(n, total, text):
@@ -240,7 +255,8 @@ def step(n, total, text):
 
 
 def step_done(t0):
-    log(f"          klaar in {time.time() - t0:.0f} s")
+    console.clear_bar()
+    log(f"klaar in {time.time() - t0:.1f} s")
 
 
 def mmss(t):
@@ -266,21 +282,17 @@ def run_ffmpeg(cmd, length, cwd=None):
             try:
                 show_bar(int(line.split("=")[1]) / 1_000_000 / max(length, 0.1))
             except ValueError:
-                pass                           # "N/A" in het begin
+                show_bar(None)                 # "N/A" in het begin: spinner
         elif line and not re.match(r"^[a-z_0-9]+=", line):
             errors.append(line)                # alles wat geen voortgangsregel is, is een foutmelding
     p.wait()
     p.stdout.close()
     if p.returncode != 0:
-        end_bar()
-        error_text = "\n".join(errors)
-        print(
-            f"\n{Fore.RED}[FOUT] ffmpeg ...\n{error_text}{Style.RESET_ALL}",
-            file=sys.stderr,
-            flush=True,
-        )
+        console.clear_bar()
+        console.error_block("FOUT  ffmpeg ...", "\n".join(errors))
         raise RuntimeError("\n".join(errors[-5:]) or "ffmpeg mislukt")
-    show_bar(1.0)
+    show_bar(1.0, force=True)
+    end_bar()
 
 
 def cleanup_work(days=None):
@@ -350,9 +362,91 @@ def video_size(path):
     return int(w), int(h)
 
 
-def ytdlp(*args):
+_YTDLP_PCT = re.compile(r"\[download\]\s+(\d+(?:\.\d+)?)%(?:\s+of\s+~?\s*(\S+))?"
+                        r"(?:\s+at\s+(\S+))?(?:\s+ETA\s+(\S+))?")
+_FFMPEG_TIME = re.compile(r"time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
+def ytdlp_download(*args, length=None, label=None):
+    """yt-dlp voor echte downloads: leest de voortgang mee en toont één laadbalk
+    (in de terminal én in de browser) in plaats van een regel per update.
+    length = lengte van het stuk in seconden (bij --download-sections, dan doet ffmpeg het werk)."""
+    if getattr(sys, "frozen", False):
+        return ytdlp(*args, label=label)
+    import queue
+
+    cmd = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--newline", "--progress", *args]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         env={**os.environ, "PYTHONUTF8": "1"})
+    lines = queue.Queue()
+
+    def reader():
+        buf = b""
+        while True:
+            chunk = p.stdout.read1(4096) if hasattr(p.stdout, "read1") else p.stdout.read(1)
+            if not chunk:
+                break
+            buf += chunk
+            parts = re.split(rb"[\r\n]", buf)          # ffmpeg werkt zijn regel bij met \r
+            buf = parts.pop()
+            for part in parts:
+                if part.strip():
+                    lines.put(part.decode("utf-8", "replace").strip())
+        if buf.strip():
+            lines.put(buf.decode("utf-8", "replace").strip())
+        lines.put(None)
+
+    threading.Thread(target=reader, daemon=True).start()
+    task = current_task()
+    t0, output, files, last = time.time(), [], 0, -1.0
+    show_bar(None, "verbinden...", force=True, label=label)
+    while True:
+        if task and task.cancel.is_set():
+            p.kill()
+            p.wait()
+            console.clear_bar()
+            raise TaskCancelled("Geannuleerd.")
+        try:
+            ln = lines.get(timeout=0.15)
+        except queue.Empty:
+            if last < 0:
+                show_bar(None, f"{time.time() - t0:.0f} s", label=label)
+            continue
+        if ln is None:
+            break
+        m = _YTDLP_PCT.search(ln)
+        if m:
+            frac = float(m.group(1)) / 100
+            if frac + 0.2 < last:                      # nieuw bestand (bv. eerst beeld, dan geluid)
+                files += 1
+            last = frac
+            size, speed, eta = m.group(2), m.group(3), m.group(4)
+            parts = [x for x in (size, speed and f"{speed}", eta and eta != "Unknown" and f"nog {eta}") if x]
+            if files:
+                parts.insert(0, f"deel {files + 1}")
+            show_bar(frac, " · ".join(parts), label=label)
+            continue
+        m = _FFMPEG_TIME.search(ln)
+        if m and length:
+            done = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+            last = done / max(length, 0.1)
+            show_bar(last, f"{done:.0f} / {length:.0f} s", label=label)
+            continue
+        output.append(ln)
+    p.wait()
+    if p.returncode != 0:
+        console.clear_bar()
+        console.error_block(f"FOUT  yt-dlp {' '.join(str(a) for a in args[:6])} ...", "\n".join(output))
+        errs = [x for x in output if "ERROR" in x] or output
+        raise RuntimeError("\n".join(errs[-5:]) or "yt-dlp mislukt")
+    show_bar(1.0, f"{time.time() - t0:.1f} s", force=True, label=label)
+    end_bar()
+    return "\n".join(output)
+
+
+def ytdlp(*args, label=None):
     if not getattr(sys, "frozen", False):
-        return run([sys.executable, "-m", "yt_dlp", "--no-playlist", *args])
+        return run([sys.executable, "-m", "yt_dlp", "--no-playlist", *args], label=label)
 
     import io
     from contextlib import redirect_stderr, redirect_stdout
@@ -374,7 +468,7 @@ def ytdlp(*args):
     out = stdout_buf.getvalue()
     err = stderr_buf.getvalue()
     if ret != 0:
-        print(f"\n[FOUT] yt_dlp {' '.join(full_args[:8])} ...\n{err}", file=sys.stderr, flush=True)
+        console.error_block(f"FOUT  yt_dlp {' '.join(full_args[:8])} ...", err)
         tail = "\n".join(err.strip().splitlines()[-5:]) or "yt-dlp mislukt"
         raise RuntimeError(tail)
     return out
@@ -850,6 +944,11 @@ def run_job(d, kind, fn, data):
             return fn(data)
         finally:
             lock.release()
+    return start_task(kind, fn, data, lock)
+
+
+def start_task(kind, fn, data, lock):
+    """Start fn(data) in een achtergrondtaak; `lock` is al vastgepakt en wordt na afloop vrijgegeven."""
     task = Task(kind)
     with _tasks_lock:
         old = [k for k, t in _tasks.items() if t.finished and time.time() - t.finished > 3600]
@@ -971,18 +1070,33 @@ def index():
 
 @app.post("/api/load")
 def load():
-    """Haal alleen informatie over de video op (duur, soort site). Er wordt niets groots gedownload."""
-    url = (request.get_json(silent=True) or {}).get("url", "").strip()
-    body, status = load_url(url)
-    return jsonify(body), status
+    """Haal alleen informatie over de video op (duur, soort site). Er wordt niets groots gedownload.
+    Met background=true gebeurt het in een achtergrondtaak, zodat de pagina een laadbalk toont."""
+    data = request.get_json(silent=True) or {}
+    url = str(data.get("url", "")).strip()
+    if not data.get("background") or not url.startswith(("http://", "https://")):
+        body, status = load_url(url)
+        return jsonify(body), status
+
+    def job(_data):
+        body, status = load_url(url)
+        return jsonify(body), status
+
+    lock = threading.Lock()                           # laden mag gerust vaker tegelijk
+    lock.acquire()
+    return start_task("load", job, data, lock)
 
 
 def load_url(url):
     """Maak een taak voor een videolink. Geeft (antwoord, statuscode) terug."""
     if not url.startswith(("http://", "https://")):
         return {"error": "Geef een geldige link op (begint met http of https)."}, 400
+    task = current_task()
+    if task:
+        task.title, task.step = "Video laden", "Video opzoeken..."
+    log(f"Video opzoeken: {url}")
     try:
-        info = json.loads(ytdlp("-J", url))               # -J = alleen info, geen download
+        info = json.loads(ytdlp("-J", url, label="Video opzoeken"))   # -J = alleen info, geen download
     except TaskCancelled:
         raise
     except Exception as e:
@@ -1005,13 +1119,17 @@ def load_url(url):
             return {"error": "Laden mislukt: kon de lengte van de video niet bepalen (livestream?)"}, 500
         # YouTube spelen we in de pagina zelf af: dan hoeft er niets gedownload te worden
         save_meta(duration)
+        log(f"KLAAR: {info.get('title') or url} ({mmss(duration)}, speelt af via YouTube)")
         return {"job": job, "mode": "youtube", "id": info["id"], "duration": duration,
                 "title": info.get("title")}, 200
 
     # andere sites: een kleine preview in lage kwaliteit, alleen om in te kunnen kijken en spoelen
+    if task:
+        task.step = "Preview downloaden..."
+    log(f"Preview downloaden: {info.get('title') or url}")
     try:
-        ytdlp("-S", "res:360,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
-              "-o", str(d / "preview.%(ext)s"), url)
+        ytdlp_download("-S", "res:360,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
+                       "-o", str(d / "preview.%(ext)s"), url, label="Preview downloaden")
         prev = find_file(d, "preview")
         if not prev:
             raise RuntimeError("geen preview gevonden na het downloaden")
@@ -1021,6 +1139,7 @@ def load_url(url):
     except Exception as e:
         return {"error": f"Laden mislukt: {e}"}, 500
     save_meta(duration)
+    log(f"KLAAR: {info.get('title') or url} ({mmss(duration)})")
     return {"job": job, "mode": "preview", "duration": duration,
             "video": f"/media/{job}/{prev.name}", "title": info.get("title")}, 200
 
@@ -1454,9 +1573,10 @@ def render_job(data):
                          "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                          "-c:a", "aac", "-b:a", "192k", str(d / f"{stem}.mp4")])
                 else:
-                    ytdlp("--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
-                          "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
-                          "-o", str(d / f"{stem}.%(ext)s"), url)
+                    ytdlp_download("--download-sections", f"*{start:.2f}-{end:.2f}",
+                                   "--force-keyframes-at-cuts",
+                                   "-S", "res:1080,vcodec:h264,acodec:aac", "--merge-output-format", "mp4",
+                                   "-o", str(d / f"{stem}.%(ext)s"), url, length=end - start)
                 part = find_file(d, stem)
                 if not part:
                     raise RuntimeError(f"stuk {i} kon niet worden opgehaald")
@@ -1557,8 +1677,7 @@ def render_job(data):
                     if max_h >= 60:
                         logo_box = (y0, max_h)
                     else:
-                        print("[LET OP] Geen ruimte voor het logo, het wordt overgeslagen.",
-                              file=sys.stderr, flush=True)
+                        log("LET OP: geen ruimte voor het logo, het wordt overgeslagen.")
 
                 t = step(n_steps, n_steps, "Clip renderen...")
                 if logo_box:
