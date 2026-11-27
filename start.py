@@ -42,69 +42,45 @@ def prepare_environment():
 
 prepare_environment()
 
-from colorama import Fore, Style, just_fix_windows_console
-
-just_fix_windows_console()
 os.environ["CLIPAPP_LOCAL_MODE"] = "1"
 
-from app import app, cleanup_work
+import console
+from app import app, cleanup_work, print_startup_banner
 
 
 missing_tools = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
 if missing_tools:
-    print(
-        f"{Fore.RED}[ERROR] FFmpeg ontbreekt. Installeer FFmpeg (inclusief ffprobe) "
-        f"en voeg het toe aan PATH.{Style.RESET_ALL} "
-        f"Niet gevonden: {', '.join(missing_tools)}",
-        file=sys.stderr,
-    )
+    console.line("FOUT  FFmpeg ontbreekt. Installeer FFmpeg (inclusief ffprobe) en voeg het toe aan PATH. "
+                 f"Niet gevonden: {', '.join(missing_tools)}", kind="err", file=sys.stderr)
     raise SystemExit(1)
 
 PORT = 5050
 URL = f"http://127.0.0.1:{PORT}"
 
+
 def run_server():
     app.run(host="127.0.0.1", port=PORT, threaded=True)
-
-
-def print_banner():
-    title = "ClipAPP - Local Video Workspace"
-    print(f"\033]0;{title}\007", end="", flush=True)
-    if sys.platform == "win32":
-        import ctypes
-
-        ctypes.windll.kernel32.SetConsoleTitleW(title)
-
-    logo = (
-        "   +---------------------------------------+\n"
-        "   |          [>]  CLIPAPP                 |\n"
-        "   +---------------------------------------+\n"
-    )
-    print(f"{Fore.CYAN}{Style.BRIGHT}{logo}{Style.RESET_ALL}")
-    print(f"  {Fore.MAGENTA}LOCAL VIDEO STUDIO{Style.RESET_ALL}")
-    print(f"  {Fore.GREEN}[SERVER]  http://127.0.0.1:{PORT}{Style.RESET_ALL}")
-    print(f"  {Fore.YELLOW}[CLIPPER] {URL}/{Style.RESET_ALL}")
-    print(f"  {Fore.YELLOW}[EDITOR]  {URL}/editor{Style.RESET_ALL}")
-    print(f"  {Fore.LIGHTBLACK_EX}{'-' * 52}{Style.RESET_ALL}")
-    print(f"  {Fore.WHITE}Stoppen: druk op Ctrl+C.{Style.RESET_ALL}", flush=True)
 
 
 def open_browser():
     time.sleep(1.2)
     if webbrowser.open(URL):
-        print(f"{Fore.GREEN}[OPEN] Browser geopend op {URL}{Style.RESET_ALL}", flush=True)
+        console.line(f"Browser geopend op {URL}", kind="ok")
     else:
-        print(f"{Fore.YELLOW}[OPEN] Open deze URL in je browser: {URL}{Style.RESET_ALL}", flush=True)
+        console.line(f"Open deze URL in je browser: {URL}", kind="warn")
 
 
 def main():
-    print_banner()
+    print_startup_banner(PORT)
     cleanup_work()
     threading.Thread(target=open_browser, daemon=True).start()
     try:
         run_server()
     except KeyboardInterrupt:
-        print(f"\n{Fore.CYAN}[STOP] ClipAPP is netjes afgesloten.{Style.RESET_ALL}", flush=True)
+        console.clear_bar()
+        print()
+        console.line("ClipAPP is netjes afgesloten. Tot de volgende clip!", kind="ok")
+
 
 if __name__ == "__main__":
     main()

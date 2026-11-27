@@ -939,7 +939,9 @@ $('#load-form').addEventListener('submit', async e => {
   $('#load-btn').disabled = true;
   setStatus(t('msg_searching'));
   try {
-    await showLoadedVideo(await api('/api/load', { url: $('#url').value }));
+    const data = await runTask('/api/load', { url: $('#url').value });   // met laadbalk op de pagina
+    setStatus('');
+    await showLoadedVideo(data);
   } catch (err) {
     setStatus(err.message, true);
   } finally {

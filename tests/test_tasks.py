@@ -1,9 +1,11 @@
 import io
+import json
 import shutil
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import app as clipapp
 from tests.test_local_video import HAS_FFMPEG, make_video
@@ -58,6 +60,25 @@ class BackgroundTaskTests(unittest.TestCase):
 
     def test_unknown_task(self):
         self.assertEqual(self.client.get("/api/tasks/doesnotexist").status_code, 404)
+
+
+class BackgroundLoadTests(unittest.TestCase):
+    def test_loading_a_link_runs_as_task_with_progress(self):
+        client = clipapp.app.test_client()
+        info = {"extractor_key": "Youtube", "id": "abc", "duration": 42, "title": "Test"}
+        with patch.object(clipapp, "ytdlp", return_value=json.dumps(info)):
+            r = client.post("/api/load", json={"url": "https://www.youtube.com/watch?v=abc",
+                                               "background": True})
+            self.assertEqual(r.status_code, 202)
+            state = wait(client, r.json["task"])
+        self.assertEqual(state["status"], "done", state)
+        self.assertIn("detail", state)
+        self.assertEqual(state["result"]["mode"], "youtube")
+        shutil.rmtree(clipapp.WORK / state["result"]["job"], ignore_errors=True)
+
+    def test_bad_link_fails_right_away(self):
+        r = clipapp.app.test_client().post("/api/load", json={"url": "nope", "background": True})
+        self.assertEqual(r.status_code, 400)
 
 
 if __name__ == "__main__":
